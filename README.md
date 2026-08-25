@@ -23,7 +23,23 @@
 **เดือน ส.ค. 69 ยังไม่มีไฟล์รวมแบบ Schema A/B** — มีแต่ไฟล์ดิบแยกตามขนส่ง/ทีมย่อย
 ต้องรวมเป็นไฟล์เดียวก่อน (แบบเดือนอื่น ๆ) แล้วเพิ่มเข้า `pipeline/config.py`
 
-## วิธีรัน
+## วิธีรัน (ไม่ใช้ terminal — แนะนำสำหรับตอนนี้)
+
+ใช้ **Google Colab** รันในเบราว์เซอร์ล้วน ไม่ต้องติดตั้งอะไรในเครื่อง:
+
+1. เตรียม service account key (ไฟล์ `.json`) ของ `glory-sheets-reader-456@ptglory-dashboard-sales-fb.iam.gserviceaccount.com`
+   ถ้ายังไม่มี: Google Cloud Console → IAM & Admin → Service Accounts → เลือก account นี้ →
+   แท็บ Keys → Add Key → Create new key → JSON → Create (ไฟล์จะดาวน์โหลดมาเอง)
+2. เปิด [colab.research.google.com](https://colab.research.google.com) → File → Upload notebook →
+   เลือกไฟล์ `pipeline/combine_returns_colab.ipynb` จาก repo นี้
+3. รันทีละเซลล์จากบนลงล่าง (กด ▶ หรือ `Shift+Enter`) — เซลล์ที่ 2 จะมีปุ่มให้อัปโหลด service account key
+4. รอจนถึงขั้นตอนอ่านข้อมูล (1-3 นาที เพราะแต่ละไฟล์มี 70,000+ แถว) จะเห็นสรุปจำนวนแถวต่อเดือน
+   + ตัวอย่างข้อมูล 20 แถวแรกในหน้า Colab เลย
+5. เซลล์สุดท้ายของขั้นตอนที่ 7 จะดาวน์โหลดไฟล์ CSV รวมทุกเดือนกลับเครื่องให้อัตโนมัติ
+
+ไฟล์ key ที่อัปโหลดเข้า Colab จะอยู่แค่ใน session นั้น หายไปเมื่อปิดแท็บ ไม่ถูกบันทึกถาวรที่ไหน
+
+## วิธีรันแบบ terminal (ทางเลือก เมื่อสะดวกแล้ว)
 
 ```bash
 pip install -r requirements.txt
