@@ -38,8 +38,8 @@ def _dedupe_headers(headers: list[str]) -> list[str]:
     return out
 
 
-def read_sheet_raw(gc: gspread.Client, spreadsheet_id: str) -> pd.DataFrame:
-    ws = gc.open_by_key(spreadsheet_id).sheet1
+def read_sheet_raw(gc: gspread.Client, spreadsheet_id: str, gid: int) -> pd.DataFrame:
+    ws = gc.open_by_key(spreadsheet_id).get_worksheet_by_id(gid)
     values = ws.get_all_values()
     if not values:
         return pd.DataFrame()
@@ -68,7 +68,7 @@ def main() -> None:
     frames = []
     for src in SOURCE_SHEETS:
         print(f"Reading {src['label']} ({src['schema']}) ...")
-        raw = read_sheet_raw(gc, src["spreadsheet_id"])
+        raw = read_sheet_raw(gc, src["spreadsheet_id"], src["gid"])
         if raw.empty:
             print(f"  WARNING: {src['label']} came back empty, skipping.")
             continue

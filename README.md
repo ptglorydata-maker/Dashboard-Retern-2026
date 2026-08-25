@@ -32,6 +32,7 @@ pip install -r requirements.txt
 1. สร้าง/ใช้ service account ที่มีอีเมล `glory-sheets-reader-456@ptglory-dashboard-sales-fb.iam.gserviceaccount.com`
    เปิด Google Sheets API + Drive API ให้ project นั้น
 2. แชร์ไฟล์ทุกเดือนใน `pipeline/config.py` (`SOURCE_SHEETS`) ให้อีเมลนี้เป็น **Viewer**
+   (ยืนยันแล้วว่าทุกไฟล์แชร์ให้ `glory-sheets-reader-456@ptglory-dashboard-sales-fb.iam.gserviceaccount.com` ไว้แล้ว)
 3. ดาวน์โหลด key JSON ของ service account มาไว้ที่ path ตาม `CREDS_PATH` ใน `pipeline/config.py`
    (ห้าม commit ไฟล์นี้เข้า git — อยู่ใน `.gitignore` แล้ว)
 4. รัน:
