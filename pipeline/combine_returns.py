@@ -12,6 +12,7 @@ is turned on — loads the same data into BigQuery.
 
 import os
 import sys
+import time
 
 import gspread
 import pandas as pd
@@ -24,11 +25,14 @@ from config import (
 from normalize import normalize
 
 
+_INVISIBLE_CHARS = str.maketrans("", "", "\u200b\u200c\u200d\ufeff")
+
+
 def _dedupe_headers(headers: list[str]) -> list[str]:
     seen: dict[str, int] = {}
     out = []
     for h in headers:
-        h = h.strip()
+        h = h.translate(_INVISIBLE_CHARS).strip()
         if h in seen:
             seen[h] += 1
             out.append(f"{h}__{seen[h]}")
@@ -38,9 +42,21 @@ def _dedupe_headers(headers: list[str]) -> list[str]:
     return out
 
 
+def _with_retry(fn, attempts=5, base_delay=5):
+    for attempt in range(1, attempts + 1):
+        try:
+            return fn()
+        except gspread.exceptions.APIError as e:
+            if attempt == attempts:
+                raise
+            delay = base_delay * (2 ** (attempt - 1))
+            print(f"  API error ({e}), retrying in {delay}s ({attempt}/{attempts}) ...")
+            time.sleep(delay)
+
+
 def read_sheet_raw(gc: gspread.Client, spreadsheet_id: str, gid: int) -> pd.DataFrame:
-    ws = gc.open_by_key(spreadsheet_id).get_worksheet_by_id(gid)
-    values = ws.get_all_values()
+    ws = _with_retry(lambda: gc.open_by_key(spreadsheet_id).get_worksheet_by_id(gid))
+    values = _with_retry(ws.get_all_values)
     if not values:
         return pd.DataFrame()
     header, rows = _dedupe_headers(values[0]), values[1:]

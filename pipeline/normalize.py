@@ -23,7 +23,7 @@ STANDARD_COLUMNS = [
     "province",
     "product_code", "product_name", "product_price",
     "payment_method", "return_qty", "is_returned",
-    "phone",
+    "phone", "seller_remark",
 ]
 
 # target_column -> source_column, per schema
@@ -46,6 +46,7 @@ SCHEMA_A_MAP = {
     "product_code": "รหัสสินค้า",
     "product_name": "ชื่อสินค้า",
     "product_price": "ราคาสินค้าทั้งหมด",
+    "seller_remark": "หมายเหตุจากผู้ขาย",
 }
 
 SCHEMA_B_MAP = {
@@ -107,7 +108,11 @@ def normalize_schema_a(raw: pd.DataFrame, month: str) -> pd.DataFrame:
     out["ship_date"] = _parse_date(out["ship_date"])
     out["product_price"] = _parse_amount(out["product_price"])
     out["return_qty"] = pd.to_numeric(out["return_qty"], errors="coerce").fillna(0)
-    out["is_returned"] = (out["return_qty"] > 0) | out["shipping_status"].astype(str).str.contains("ตีกลับ", na=False)
+    out["is_returned"] = (
+        (out["return_qty"] > 0)
+        | out["shipping_status"].astype(str).str.contains("ตีกลับ", na=False)
+        | out["seller_remark"].astype(str).str.contains("ตีกลับ", na=False)
+    )
 
     return out.reindex(columns=STANDARD_COLUMNS)
 
