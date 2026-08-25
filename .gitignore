@@ -1,0 +1,6 @@
+service_account.json
+*.json.key
+output/
+__pycache__/
+*.pyc
+.venv/
