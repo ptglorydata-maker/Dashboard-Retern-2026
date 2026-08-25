@@ -18,7 +18,7 @@ SOURCE_SHEETS = [
     {"month": "2026-04", "label": "เม.ย.69", "spreadsheet_id": "1WWitrg5JbtF9tdw_oLc45USGtQLao1RqW6IbqFSHpoE", "gid": 57782583, "schema": "A"},
     {"month": "2026-05", "label": "พ.ค.69", "spreadsheet_id": "1MlHoMACoJO4xieS-ctKkMt1KfilATfwNg4UZcJRE0H8", "gid": 1451873012, "schema": "A"},
     {"month": "2026-06", "label": "มิ.ย.69", "spreadsheet_id": "1DegHkVMAeYEMftJTRZ7VIZXHNQIbEtDgrNIIoWNC54w", "gid": 1885419356, "schema": "A"},
-    {"month": "2026-07", "label": "ก.ค.69", "spreadsheet_id": "1EIKRt4EHeYKPoymw53F5UsxZZTYATPtUd0HCDIwLNtE", "gid": 0, "schema": "B"},
+    {"month": "2026-07", "label": "ก.ค.69", "spreadsheet_id": "1EIKRt4EHeYKPoymw53F5UsxZZTYATPtUd0HCDIwLNtE", "gid": 477288052, "schema": "A"},
     # 2026-08 (ส.ค.69) not consolidated into a single monthly file yet — add it here once it is.
 ]
 
