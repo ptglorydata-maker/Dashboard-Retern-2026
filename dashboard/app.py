@@ -24,15 +24,15 @@ from config import DUCKDB_PATH, DUCKDB_TABLE  # noqa: E402
 # --- ธีมมืด เน้นชมพู CI — validated with dataviz/scripts/validate_palette.js ---
 # ปรับความสว่างของชมพูแบรนด์ (#D34B82) ให้สดขึ้นสำหรับพื้นหลังมืด (แนวทาง "dark mode
 # คือคนละสเต็ปของเรมป์เดียวกัน" ไม่ใช่กลับสีอัตโนมัติ) แล้ว contrast-check กับพื้นมืดใหม่
-APP_BG = "#120B10"
-CARD_BG = "#1C1319"
-CARD_BORDER = "#3A2530"
+APP_BG = "#241B26"
+CARD_BG = "#2F2531"
+CARD_BORDER = "#4E3E4B"
 TEXT = "#F5EDF0"
-TEXT_MUTED = "#B9A7B0"
+TEXT_MUTED = "#C6B7C2"
 PRIMARY = "#FF6FA5"       # ชมพูสดหลัก — ตัวเด่น/บวก
 NEUTRAL = "#B9A7B0"       # เทาอมชมพู — บริบท/ปริมาณ (แทนน้ำตาล CI เดิมบนพื้นมืด)
 NEGATIVE = "#F4407E"      # ชมพูเข้ม/แดง — ใช้เฉพาะตอนหมายถึง "แย่ลง" (ตีกลับเพิ่ม)
-GRID = "#2A1E24"
+GRID = "#413240"
 # แรมป์ชมพูโทนเดียว (light -> dark) สำหรับโดนัท/หลายหมวดหมู่ — ใส่ direct label กำกับ
 # เสมอ เพราะ hue เดียวกันแยก identity ด้วยสีอย่างเดียวไม่ได้ (ตามคำขอ "ใช้สี CI ชมพูเป็นหลัก")
 PINK_RAMP = ["#FFD1E3", "#FF9EC4", "#FF6FA5", "#E23F76", "#B23A67", "#7A2648"]
@@ -91,7 +91,7 @@ st.markdown(
     .kpi-value, .kpi-delta {{ font-family: 'Roboto', sans-serif; }}
 
     .kpi-card {{
-        background: linear-gradient(160deg, {CARD_BG} 0%, #241621 100%);
+        background: linear-gradient(160deg, {CARD_BG} 0%, #382C38 100%);
         border: 1px solid {CARD_BORDER};
         border-radius: 16px;
         padding: 16px 18px 8px 18px;
