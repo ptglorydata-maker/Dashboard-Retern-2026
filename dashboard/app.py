@@ -82,9 +82,11 @@ st.markdown(
 st.markdown(
     f"""
     <style>
-    html, body, .stApp, [class*="css"] {{ font-family: 'Kanit', sans-serif; }}
+    html, body, [class*="st-"], [class*="css-"], .stApp, .stApp * {{
+        font-family: 'Kanit', sans-serif !important;
+    }}
     .stApp {{ background-color: {APP_BG}; }}
-    .block-container {{ padding-top: 2rem; max-width: 1450px; }}
+    .block-container {{ padding-top: 1.2rem; max-width: 1450px; }}
     h1 {{ color: {TEXT}; font-weight: 700; }}
     h2, h3, h4 {{ color: {TEXT}; font-weight: 600; }}
     p, .stCaption, [data-testid="stCaptionContainer"] {{ color: {TEXT_MUTED}; }}
@@ -93,28 +95,66 @@ st.markdown(
     button[data-baseweb="tab"][aria-selected="true"] {{ color: {PRIMARY}; }}
     [data-testid="stDataFrame"] {{ border: 1px solid {CARD_BORDER}; border-radius: 10px; }}
     hr {{ border-color: {CARD_BORDER}; }}
-    /* ตัวเลขใช้ Roboto ตามที่ขอ — ค่า KPI ใหญ่ + ตัวเลข delta */
-    .kpi-value, .kpi-delta {{ font-family: 'Roboto', sans-serif; }}
+    /* ตัวเลขใช้ Roboto ตามที่ขอ — ทับ Kanit เฉพาะจุดที่เป็นตัวเลขล้วน */
+    .kpi-value, .kpi-delta, .num-font {{ font-family: 'Roboto', sans-serif !important; }}
 
+    /* --- navbar บนสุด --- */
+    .topbar {{
+        display: flex; align-items: center; justify-content: space-between;
+        background: linear-gradient(135deg, {CARD_BG} 0%, #3A2C3C 100%);
+        border: 1px solid {CARD_BORDER};
+        border-radius: 16px;
+        padding: 14px 22px;
+        margin-bottom: 18px;
+        box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+    }}
+    .topbar-title {{ display: flex; align-items: center; gap: 12px; }}
+    .topbar-title .emoji {{ font-size: 1.6rem; }}
+    .topbar-title h1 {{ margin: 0; font-size: 1.3rem; }}
+    .topbar-title .sub {{ color: {TEXT_MUTED}; font-size: 0.78rem; margin-top: 2px; }}
+    .topbar-pill {{
+        display: flex; align-items: center; gap: 6px;
+        background: rgba(255,111,165,0.12);
+        border: 1px solid rgba(255,111,165,0.35);
+        color: {PRIMARY}; font-size: 0.78rem; font-weight: 500;
+        padding: 6px 14px; border-radius: 999px;
+    }}
+    .topbar-pill .dot {{
+        width: 7px; height: 7px; border-radius: 50%; background: #3DD68C;
+        box-shadow: 0 0 6px #3DD68C;
+    }}
+
+    /* --- การ์ด KPI: เงา/glow ตามสีไอคอนของการ์ดนั้น + ทำให้กะทัดรัดขึ้น --- */
     .kpi-card {{
         background: linear-gradient(160deg, {CARD_BG} 0%, #382C38 100%);
         border: 1px solid {CARD_BORDER};
-        border-radius: 16px;
-        padding: 16px 18px 8px 18px;
+        border-radius: 14px;
+        padding: 14px 16px 6px 16px;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.22);
+        transition: box-shadow 0.15s ease;
     }}
-    .kpi-top {{ display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }}
+    .kpi-top {{ display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }}
     .kpi-icon {{
-        width: 34px; height: 34px; border-radius: 50%;
+        width: 32px; height: 32px; border-radius: 50%;
         display: flex; align-items: center; justify-content: center;
-        font-size: 16px;
+        font-size: 15px;
     }}
-    .kpi-label {{ color: {TEXT_MUTED}; font-size: 0.85rem; }}
-    .kpi-value {{ color: {TEXT}; font-size: 1.55rem; font-weight: 700; line-height: 1.2; }}
-    .kpi-delta {{ font-size: 0.8rem; margin-top: 2px; }}
+    .kpi-label {{ color: {TEXT_MUTED}; font-size: 0.8rem; }}
+    .kpi-value {{ color: {TEXT}; font-size: 1.45rem; font-weight: 700; line-height: 1.15; }}
+    .kpi-delta {{ font-size: 0.78rem; margin-top: 1px; }}
     .kpi-delta.up {{ color: #3DD68C; }}
     .kpi-delta.down {{ color: {NEGATIVE}; }}
-    .kpi-sub {{ color: {TEXT_MUTED}; font-size: 0.72rem; margin-bottom: 6px; }}
-    .kpi-spark {{ margin: 6px -4px -4px -4px; }}
+    .kpi-sub {{ color: {TEXT_MUTED}; font-size: 0.7rem; margin-bottom: 4px; }}
+    .kpi-spark {{ margin: 4px -2px -2px -2px; }}
+
+    /* --- ห่อกราฟ Plotly ให้เป็นการ์ดมีเงา/ขอบ เหมือนการ์ด KPI --- */
+    [data-testid="stPlotlyChart"] {{
+        background: linear-gradient(160deg, {CARD_BG} 0%, #322732 100%);
+        border: 1px solid {CARD_BORDER};
+        border-radius: 14px;
+        padding: 6px 10px 2px 10px;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.22);
+    }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -151,9 +191,9 @@ def kpi_card(label: str, value: str, delta: float | None, delta_fmt: str, icon: 
         arrow = "▲" if delta >= 0 else "▼"
         delta_html = f'<div class="kpi-delta {cls}">{arrow} {delta_fmt}</div>'
     return f"""
-    <div class="kpi-card">
+    <div class="kpi-card" style="border-top: 3px solid {badge}; box-shadow: 0 6px 20px rgba(0,0,0,0.22), 0 0 16px {badge}22;">
         <div class="kpi-top">
-            <span class="kpi-icon" style="background:{badge}26; color:{badge};">{icon}</span>
+            <span class="kpi-icon" style="background:{badge}26; color:{badge}; box-shadow: 0 0 10px {badge}40;">{icon}</span>
             <span class="kpi-label">{label}</span>
         </div>
         <div class="kpi-value">{value}</div>
@@ -262,8 +302,25 @@ else:
 month_idx = months.index(cur_month) if cur_month in months else -1
 prev_month = months[month_idx - 1] if month_idx > 0 else None
 
-st.title("📊 Dashboard สินค้าตีกลับ ปี 2569")
-st.caption("PT Glory Interplus — ข้อมูลรวมจากชีต Google Sheets รายเดือน")
+_range_label = "ม.ค.-ก.ค. 69" if selected_month_opt == ALL_OPTION else thai_month(selected_month_opt)
+st.markdown(
+    f"""
+    <div class="topbar">
+        <div class="topbar-title">
+            <span class="emoji">📊</span>
+            <div>
+                <h1>Dashboard สินค้าตีกลับ ปี 2569</h1>
+                <div class="sub">PT Glory Interplus — ข้อมูลรวมจากชีต Google Sheets รายเดือน</div>
+            </div>
+        </div>
+        <div style="display:flex; gap:10px;">
+            <span class="topbar-pill">🗓️ {_range_label}</span>
+            <span class="topbar-pill"><span class="dot"></span> Live</span>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 # --- ข้อมูลรายเดือนแบบเต็ม (ไม่ตัดตามตัวกรองเดือน) ใช้กับกราฟเทรนด์และ sparkline การ์ด KPI ---
 monthly = rate_table(base, "month").sort_values("month")
