@@ -13,6 +13,7 @@ Light "colorful modern SaaS" theme lives in .streamlit/config.toml (native
 widget theming) plus the CSS block below (custom KPI cards, chart chrome).
 """
 
+import math
 import os
 import sys
 
@@ -167,10 +168,40 @@ st.markdown(
         padding: 6px 10px 2px 10px;
         box-shadow: 0 4px 16px rgba(22,27,34,0.06);
     }}
+
+    /* --- การ์ด HTML กำหนดเอง: โดนัท+legend, ranked list --- */
+    .chart-card {{
+        background: {CARD_BG};
+        border: 1px solid {CARD_BORDER};
+        border-radius: 14px;
+        padding: 16px 18px;
+        box-shadow: 0 4px 16px rgba(22,27,34,0.06);
+        height: 100%;
+    }}
+    .chart-card-title {{ font-size: 0.95rem; font-weight: 600; color: {TEXT}; margin-bottom: 14px; }}
+    .rank-row {{ margin-bottom: 12px; }}
+    .rank-row:last-child {{ margin-bottom: 0; }}
+    .rank-row-top {{ display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 4px; }}
+    .rank-row-label {{ color: {TEXT}; }}
+    .rank-row-value {{ color: {TEXT_MUTED}; font-weight: 600; }}
+    .rank-row-track {{ background: {GRID}; border-radius: 4px; height: 7px; overflow: hidden; }}
+    .rank-row-fill {{ height: 100%; border-radius: 4px; }}
+    .legend-row {{ display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }}
+    .legend-row:last-child {{ margin-bottom: 0; }}
+    .legend-dot {{ width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }}
+    .legend-label {{ flex: 1; font-size: 0.82rem; color: {TEXT}; }}
+    .legend-value {{ font-size: 0.82rem; color: {TEXT_MUTED}; }}
     </style>
     """,
     unsafe_allow_html=True,
 )
+
+
+def _flat(html: str) -> str:
+    """เอา indent/บรรทัดใหม่ในสตริง HTML ที่มาจาก f-string ในโค้ดที่เยื้องหลายชั้นออก —
+    ไม่งั้น Streamlit's markdown parser เห็นบรรทัดที่ขึ้นต้นด้วยช่องว่าง >= 4 ตัว
+    แล้วตีความเป็น code block ทำให้ขึ้นเป็นข้อความ HTML ดิบแทนที่จะ render จริง"""
+    return "".join(line.strip() for line in html.strip().splitlines())
 
 
 def sparkline_svg(values: list[float], color: str, width: int = 220, height: int = 44) -> str:
@@ -186,13 +217,92 @@ def sparkline_svg(values: list[float], color: str, width: int = 220, height: int
             for i, v in enumerate(values)
         )
     area = f"0,{height} {points} {width},{height}"
-    return f"""
+    return _flat(f"""
     <svg width="100%" height="{height}" viewBox="0 0 {width} {height}" preserveAspectRatio="none">
         <polygon points="{area}" fill="{color}" opacity="0.12"></polygon>
         <polyline points="{points}" fill="none" stroke="{color}" stroke-width="2.5"
                    stroke-linecap="round" stroke-linejoin="round"></polyline>
     </svg>
-    """
+    """)
+
+
+def donut_svg(segments: list[tuple[str, float, str]], center_label: str, center_sub: str, size: int = 150, stroke: int = 24) -> str:
+    """โดนัทวาดเอง (stroke-dasharray) + ตัวเลขรวมตรงกลาง — คุมหน้าตาได้เป๊ะ ต่อกับ legend HTML ข้างๆ ได้"""
+    r = (size - stroke) / 2
+    cx = cy = size / 2
+    circumference = 2 * math.pi * r
+    total = sum(v for _, v, _ in segments) or 1
+    arcs, offset = [], 0.0
+    for _, value, color in segments:
+        length = value / total * circumference
+        arcs.append(
+            f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="{color}" stroke-width="{stroke}" '
+            f'stroke-dasharray="{length:.2f} {circumference - length:.2f}" '
+            f'stroke-dashoffset="{-offset:.2f}" transform="rotate(-90 {cx} {cy})"></circle>'
+        )
+        offset += length
+    return _flat(f"""
+    <svg width="{size}" height="{size}" viewBox="0 0 {size} {size}">
+        <circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="{GRID}" stroke-width="{stroke}"></circle>
+        {''.join(arcs)}
+        <text x="{cx}" y="{cy - 4}" text-anchor="middle" font-size="20" font-weight="700"
+              fill="{TEXT}" font-family="Roboto, sans-serif">{center_label}</text>
+        <text x="{cx}" y="{cy + 16}" text-anchor="middle" font-size="10.5"
+              fill="{TEXT_MUTED}" font-family="Kanit, sans-serif">{center_sub}</text>
+    </svg>
+    """)
+
+
+def legend_rows_html(segments: list[tuple[str, float, str]]) -> str:
+    total = sum(v for _, v, _ in segments) or 1
+    rows = ""
+    for label, value, color in segments:
+        pct = value / total * 100
+        rows += f"""
+        <div class="legend-row">
+            <span class="legend-dot" style="background:{color};"></span>
+            <span class="legend-label">{label}</span>
+            <span class="legend-value num-font">{value:,.0f} ({pct:.0f}%)</span>
+        </div>
+        """
+    return rows
+
+
+def donut_card(title: str, segments: list[tuple[str, float, str]], center_label: str, center_sub: str) -> str:
+    return _flat(f"""
+    <div class="chart-card">
+        <div class="chart-card-title">{title}</div>
+        <div style="display:flex; align-items:center; gap:22px;">
+            <div style="flex-shrink:0;">{donut_svg(segments, center_label, center_sub)}</div>
+            <div style="flex:1; min-width:0;">{legend_rows_html(segments)}</div>
+        </div>
+    </div>
+    """)
+
+
+def ranked_list_card(title: str, items: list[tuple[str, float, str]], color: str) -> str:
+    """items = [(label, value_for_bar_width, display_text), ...] เรียงมาก่อนหลังตามที่จะแสดงจากบนลงล่าง"""
+    max_v = max((v for _, v, _ in items), default=1) or 1
+    rows = ""
+    for label, value, display in items:
+        width_pct = max(value / max_v * 100, 2)
+        rows += f"""
+        <div class="rank-row">
+            <div class="rank-row-top">
+                <span class="rank-row-label">{label}</span>
+                <span class="rank-row-value num-font">{display}</span>
+            </div>
+            <div class="rank-row-track">
+                <div class="rank-row-fill" style="width:{width_pct:.1f}%; background:{color};"></div>
+            </div>
+        </div>
+        """
+    return _flat(f"""
+    <div class="chart-card">
+        <div class="chart-card-title">{title}</div>
+        {rows}
+    </div>
+    """)
 
 
 def kpi_card(label: str, value: str, delta: float | None, delta_fmt: str, icon: str, badge: str, spark: list[float]) -> str:
@@ -202,7 +312,7 @@ def kpi_card(label: str, value: str, delta: float | None, delta_fmt: str, icon: 
         cls = "up" if delta >= 0 else "down"
         arrow = "▲" if delta >= 0 else "▼"
         delta_html = f'<div class="kpi-delta {cls}">{arrow} {delta_fmt}</div>'
-    return f"""
+    return _flat(f"""
     <div class="kpi-card" style="border-top: 3px solid {badge};">
         <div class="kpi-top">
             <span class="kpi-icon" style="background:{badge}1A; color:{badge};">{icon}</span>
@@ -212,7 +322,7 @@ def kpi_card(label: str, value: str, delta: float | None, delta_fmt: str, icon: 
         {delta_html}
         <div class="kpi-spark">{sparkline_svg(spark, badge)}</div>
     </div>
-    """
+    """)
 
 
 def chart_layout(fig: go.Figure, title: str, yaxis_title: str = "") -> go.Figure:
@@ -442,26 +552,16 @@ with tab_overview:
         # หมวดที่เหลือเป็น "อื่นๆ" สีเทากลาง กันสีชนกันตอนมีมากกว่า 3 ช่องทาง
         top3 = by_channel_orders.head(3).copy()
         rest = by_channel_orders.iloc[3:]
+        segments = [(row.sales_channel, row.orders, DONUT_TOP3[i]) for i, row in enumerate(top3.itertuples())]
         if not rest.empty:
-            top3 = pd.concat(
-                [top3, pd.DataFrame([{"sales_channel": "อื่นๆ", "orders": rest["orders"].sum()}])],
-                ignore_index=True,
-            )
-        donut_colors = DONUT_TOP3[: len(top3) - (1 if not rest.empty else 0)] + (
-            [DONUT_OTHER] if not rest.empty else []
+            segments.append(("อื่นๆ", rest["orders"].sum(), DONUT_OTHER))
+        st.markdown(
+            donut_card(
+                "สัดส่วนออเดอร์ตามช่องทางขาย", segments,
+                f"{by_channel_orders['orders'].sum():,}", "ออเดอร์ทั้งหมด",
+            ),
+            unsafe_allow_html=True,
         )
-        fig_donut = px.pie(
-            top3, names="sales_channel", values="orders", hole=0.62,
-            color_discrete_sequence=donut_colors,
-        )
-        fig_donut.update_traces(textinfo="label+percent", textfont_color=TEXT)
-        fig_donut.update_layout(
-            title=dict(text="สัดส่วนออเดอร์ตามช่องทางขาย", font=dict(color=TEXT, size=15)),
-            plot_bgcolor=CARD_BG, paper_bgcolor=CARD_BG,
-            font_color=TEXT_MUTED, showlegend=False,
-            margin=dict(t=48, l=10, r=10, b=10),
-        )
-        st.plotly_chart(fig_donut, use_container_width=True)
 
     with col_products:
         top_products = (
@@ -471,35 +571,26 @@ with tab_overview:
             .sort_values(ascending=False)
             .head(8)
             .reset_index(name="returns")
-            .sort_values("returns")
         )
-        fig_products = px.bar(
-            top_products, x="returns", y="product_name", orientation="h",
-            color_discrete_sequence=[CHART_PRODUCTS],
-        )
-        st.plotly_chart(
-            chart_layout(fig_products, "สินค้าที่ถูกตีกลับมากที่สุด (Top 8)", "จำนวนครั้งที่ตีกลับ"),
-            use_container_width=True,
+        items = [(row.product_name, row.returns, f"{row.returns:,}") for row in top_products.itertuples()]
+        st.markdown(
+            ranked_list_card("สินค้าที่ถูกตีกลับมากที่สุด (Top 8)", items, CHART_PRODUCTS),
+            unsafe_allow_html=True,
         )
 
 with tab_channel:
     col_a, col_b = st.columns(2)
     with col_a:
         by_channel = rate_table(filtered, "sales_channel").sort_values("rate", ascending=False)
-        fig = px.bar(by_channel, x="sales_channel", y="rate", text="rate", color_discrete_sequence=[CHART_CHANNEL])
-        fig.update_traces(texttemplate="%{text}%", textposition="outside")
-        st.plotly_chart(chart_layout(fig, "% ตีกลับ ตามช่องทางขาย", "% ตีกลับ"), use_container_width=True)
+        items = [(row.sales_channel, row.rate, f"{row.rate:.2f}%") for row in by_channel.itertuples()]
+        st.markdown(ranked_list_card("% ตีกลับ ตามช่องทางขาย", items, CHART_CHANNEL), unsafe_allow_html=True)
     with col_b:
         by_transport = (
             rate_table(filtered, "transport_company_group").sort_values("rate", ascending=False).head(10)
         )
-        fig = px.bar(
-            by_transport, x="transport_company_group", y="rate", text="rate",
-            color_discrete_sequence=[CHART_TRANSPORT],
-        )
-        fig.update_traces(texttemplate="%{text}%", textposition="outside")
-        st.plotly_chart(
-            chart_layout(fig, "% ตีกลับ ตามบริษัทขนส่ง (Top 10)", "% ตีกลับ"), use_container_width=True
+        items = [(row.transport_company_group, row.rate, f"{row.rate:.2f}%") for row in by_transport.itertuples()]
+        st.markdown(
+            ranked_list_card("% ตีกลับ ตามบริษัทขนส่ง (Top 10)", items, CHART_TRANSPORT), unsafe_allow_html=True
         )
 
 with tab_geo:
@@ -509,23 +600,15 @@ with tab_geo:
         by_province = (
             rate_table(filtered, "province", MIN_ORDERS_FOR_RATE).sort_values("rate", ascending=False).head(10)
         )
-        fig = px.bar(
-            by_province.sort_values("rate"), x="rate", y="province", orientation="h", text="rate",
-            color_discrete_sequence=[CHART_PROVINCE],
-        )
-        fig.update_traces(texttemplate="%{text}%", textposition="outside")
-        st.plotly_chart(chart_layout(fig, "% ตีกลับ ตามจังหวัด (Top 10)", "% ตีกลับ"), use_container_width=True)
+        items = [(row.province, row.rate, f"{row.rate:.2f}%") for row in by_province.itertuples()]
+        st.markdown(ranked_list_card("% ตีกลับ ตามจังหวัด (Top 10)", items, CHART_PROVINCE), unsafe_allow_html=True)
     with col_b:
         by_sales = (
             rate_table(filtered, "salesperson", MIN_ORDERS_FOR_RATE).sort_values("rate", ascending=False).head(10)
         )
-        fig = px.bar(
-            by_sales.sort_values("rate"), x="rate", y="salesperson", orientation="h", text="rate",
-            color_discrete_sequence=[CHART_SALESPERSON],
-        )
-        fig.update_traces(texttemplate="%{text}%", textposition="outside")
-        st.plotly_chart(
-            chart_layout(fig, "% ตีกลับ ตามพนักงานขาย (Top 10)", "% ตีกลับ"), use_container_width=True
+        items = [(row.salesperson, row.rate, f"{row.rate:.2f}%") for row in by_sales.itertuples()]
+        st.markdown(
+            ranked_list_card("% ตีกลับ ตามพนักงานขาย (Top 10)", items, CHART_SALESPERSON), unsafe_allow_html=True
         )
 
     st.markdown("#### จัดอันดับพนักงานขาย ตามยอดขายรวม")
