@@ -19,14 +19,16 @@ import streamlit as st
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "pipeline"))
 from config import DUCKDB_PATH, DUCKDB_TABLE  # noqa: E402
 
-# --- CI PT Glory — validated with dataviz/scripts/validate_palette.js ---
-# "#D34B82,#9C5A2E" passes all six categorical checks (light mode).
-PRIMARY = "#D34B82"       # ชมพู (สีหลัก) — ใช้กับเมตริก/กราฟที่เป็นตัวเด่น (% ตีกลับ)
-SECONDARY = "#9C5A2E"     # น้ำตาล (ปรับจาก CI #492E18 ให้ผ่านเกณฑ์ contrast/chroma) — ใช้กับปริมาณ/บริบท
-DARK_TEXT = "#492E18"     # สี CI ต้นฉบับ ใช้เป็นสีตัวอักษร/หัวข้อเท่านั้น (ไม่ใช่สีข้อมูลในกราฟ)
-BG = "#FFFBFC"
+# --- ธีมมินิมอล ชมพู/ขาว — validated with dataviz/scripts/validate_palette.js ---
+# "#D34B82,#8A8480" passes contrast; each chart below uses exactly one hue
+# (no legend needed for a single series), so the pair never appears together.
+PRIMARY = "#D34B82"       # ชมพู (สีหลักของแบรนด์) — ใช้กับเมตริก/กราฟที่เป็นตัวเด่น (ตีกลับ, % ตีกลับ)
+NEUTRAL = "#8A8480"       # เทาอุ่น (เดิมคือน้ำตาล CI) — ใช้กับกราฟ/บริบทที่ไม่ใช่ตัวเด่น (ปริมาณ, ขนส่ง)
+TEXT = "#3A3532"          # เกือบดำ โทนอุ่น — ใช้กับตัวอักษร/หัวข้อ (สีข้อมูลใช้ PRIMARY/NEUTRAL เท่านั้น)
+BG = "#FFFFFF"
 CARD_BG = "#FFFFFF"
-GRID = "#EFE3E8"
+SURFACE = "#FFF6F9"       # ชมพูอ่อนมาก ใช้เป็นพื้นหลังหน้า/แถบข้าง ให้ความรู้สึกมินิมอลไม่ขาวจนแบน
+GRID = "#F5E4EC"
 
 LOGO_PATH = os.path.join(os.path.dirname(__file__), "..", "assets", "logo-01.png")
 MIN_ORDERS_FOR_RATE = 30  # ตัดจังหวัด/พนักงานขายที่ออเดอร์น้อยเกินไป (% ตีกลับ ผันผวนไม่มีนัยสำคัญ)
@@ -36,17 +38,28 @@ st.set_page_config(page_title="Dashboard สินค้าตีกลับ 25
 st.markdown(
     f"""
     <style>
-    .stApp {{ background-color: {BG}; }}
+    .stApp {{ background-color: {SURFACE}; }}
+    .block-container {{ padding-top: 2rem; max-width: 1400px; }}
     [data-testid="stMetric"] {{
         background-color: {CARD_BG};
-        border: 1px solid {GRID};
-        border-radius: 10px;
-        padding: 12px 16px;
+        border: none;
+        border-top: 3px solid {PRIMARY};
+        border-radius: 14px;
+        padding: 18px 20px;
+        box-shadow: 0 2px 10px rgba(211, 75, 130, 0.08);
     }}
-    [data-testid="stMetricLabel"] {{ color: {DARK_TEXT}; }}
-    [data-testid="stMetricValue"] {{ color: {PRIMARY}; font-size: 1.5rem; }}
-    h1, h2, h3 {{ color: {DARK_TEXT}; }}
-    section[data-testid="stSidebar"] {{ background-color: {CARD_BG}; }}
+    [data-testid="stMetricLabel"] {{ color: {TEXT}; opacity: 0.75; font-weight: 500; }}
+    [data-testid="stMetricValue"] {{ color: {PRIMARY}; font-size: 1.6rem; font-weight: 700; }}
+    h1 {{ color: {TEXT}; font-weight: 700; }}
+    h2, h3, h4 {{ color: {TEXT}; font-weight: 600; }}
+    p, .stCaption, [data-testid="stCaptionContainer"] {{ color: {TEXT}; opacity: 0.7; }}
+    section[data-testid="stSidebar"] {{ background-color: {CARD_BG}; border-right: 1px solid {GRID}; }}
+    div[data-baseweb="tab-list"] {{ gap: 4px; }}
+    button[data-baseweb="tab"] {{ color: {TEXT}; opacity: 0.6; }}
+    button[data-baseweb="tab"][aria-selected="true"] {{ color: {PRIMARY}; opacity: 1; font-weight: 600; }}
+    div[data-baseweb="tab-highlight"] {{ background-color: {PRIMARY}; }}
+    [data-testid="stDataFrame"] {{ border: 1px solid {GRID}; border-radius: 10px; }}
+    hr {{ border-color: {GRID}; }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -60,7 +73,7 @@ def chart_layout(fig: go.Figure, title: str, yaxis_title: str = "") -> go.Figure
         xaxis_title="",
         plot_bgcolor=CARD_BG,
         paper_bgcolor=CARD_BG,
-        font_color=DARK_TEXT,
+        font_color=TEXT,
         hovermode="x unified",
         margin=dict(t=48, l=10, r=10, b=10),
     )
@@ -187,7 +200,7 @@ monthly = rate_table(filtered, "month").sort_values("month")
 with tab_overview:
     c1, c2, c3 = st.columns(3)
     with c1:
-        fig = px.bar(monthly, x="month", y="orders", color_discrete_sequence=[SECONDARY])
+        fig = px.bar(monthly, x="month", y="orders", color_discrete_sequence=[NEUTRAL])
         st.plotly_chart(chart_layout(fig, "ออเดอร์ทั้งหมด รายเดือน", "จำนวนออเดอร์"), use_container_width=True)
     with c2:
         fig = px.bar(monthly, x="month", y="returns", color_discrete_sequence=[PRIMARY])
@@ -226,7 +239,7 @@ with tab_channel:
         by_transport = (
             rate_table(filtered, "transport_company_group").sort_values("rate", ascending=False).head(10)
         )
-        fig = px.bar(by_transport, x="transport_company_group", y="rate", text="rate", color_discrete_sequence=[SECONDARY])
+        fig = px.bar(by_transport, x="transport_company_group", y="rate", text="rate", color_discrete_sequence=[NEUTRAL])
         fig.update_traces(texttemplate="%{text}%", textposition="outside")
         st.plotly_chart(
             chart_layout(fig, "% ตีกลับ ตามบริษัทขนส่ง (Top 10)", "% ตีกลับ"), use_container_width=True
@@ -251,7 +264,7 @@ with tab_geo:
         )
         fig = px.bar(
             by_sales.sort_values("rate"), x="rate", y="salesperson", orientation="h", text="rate",
-            color_discrete_sequence=[SECONDARY],
+            color_discrete_sequence=[NEUTRAL],
         )
         fig.update_traces(texttemplate="%{text}%", textposition="outside")
         st.plotly_chart(
