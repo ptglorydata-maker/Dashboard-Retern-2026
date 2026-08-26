@@ -74,6 +74,49 @@ pip install -r requirements.txt
 python -c "import duckdb; print(duckdb.connect('output/returns_2569.duckdb').sql('SELECT * FROM returns_2569 LIMIT 10'))"
 ```
 
+## Dashboard (Streamlit)
+
+รันในเครื่อง:
+
+```bash
+streamlit run dashboard/app.py
+```
+
+ถ้ามีไฟล์ `output/returns_2569.duckdb` อยู่แล้ว (รัน `combine_returns.py` มาก่อน) จะอ่านจากไฟล์นั้นตรง ๆ
+(เร็ว) ถ้าไม่มี — เช่นตอน deploy ขึ้น cloud — จะดึงข้อมูลจาก Google Sheets สดใหม่ตรง ๆ แทน
+
+### Deploy ขึ้น Streamlit Community Cloud (ฟรี)
+
+1. Push repo (branch นี้) ขึ้น GitHub ให้เรียบร้อย (ทำแล้ว)
+2. ไปที่ [share.streamlit.io](https://share.streamlit.io) → New app → เลือก repo/branch นี้ →
+   Main file path ใส่ `dashboard/app.py`
+3. **ก่อนกด Deploy (หรือหลังก็ได้ แล้วรีสตาร์ท)** ตั้งค่า secret: App settings → Secrets → วาง TOML นี้
+   (แปลงจากไฟล์ `service_account.json` — ค่า `private_key` คัดลอกมาทั้ง `\n` ในเครื่องหมายคำพูดได้เลย
+   ไม่ต้องแก้ไขอะไร):
+
+   ```toml
+   [gcp_service_account]
+   type = "service_account"
+   project_id = "ptglory-dashboard-sales-fb"
+   private_key_id = "..."
+   private_key = "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+   client_email = "glory-sheets-reader-456@ptglory-dashboard-sales-fb.iam.gserviceaccount.com"
+   client_id = "..."
+   auth_uri = "https://accounts.google.com/o/oauth2/auth"
+   token_uri = "https://oauth2.googleapis.com/token"
+   auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
+   client_x509_cert_url = "..."
+   universe_domain = "googleapis.com"
+   ```
+
+4. Deploy — รอบแรกจะช้าหน่อย (ดึง ~527,000 แถวจาก Sheets สด ๆ ใช้เวลาราวไม่กี่นาที) หลังจากนั้น
+   แคชไว้ 30 นาที (`@st.cache_data(ttl=1800)` ใน `dashboard/app.py`) ไม่ต้องรอทุกครั้งที่มีคนเข้า
+5. ไฟล์ credential เดิม (`service_account.json`) **ไม่ต้อง** และ **ห้าม** อัปโหลดขึ้น repo/secrets เป็นไฟล์ —
+   ใช้ TOML ใน Secrets ตามข้อ 3 แทนเสมอ
+
+โค้ดที่ตัดสินใจว่าจะอ่าน credential จากไฟล์ local หรือจาก `st.secrets` อยู่ที่ `pipeline/auth.py`
+(ใช้ร่วมกันทั้ง CLI script และ dashboard)
+
 ## สิ่งที่ต้องตรวจสอบก่อนเชื่อผลลัพธ์ 100%
 
 - คอลัมน์ `unit` ของ Schema A ถูกดึงจากรหัสสินค้า (regex หา `U<เลข>`) เพราะไฟล์ไม่มีคอลัมน์ Unit ตรง ๆ

@@ -18,8 +18,9 @@ import gspread
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(__file__))
+from auth import get_gspread_client
 from config import (
-    CREDS_PATH, SOURCE_SHEETS, LOCAL_OUTPUT_CSV,
+    SOURCE_SHEETS, LOCAL_OUTPUT_CSV,
     ENABLE_DUCKDB_LOAD, DUCKDB_PATH, DUCKDB_TABLE, DUCKDB_WRITE_MODE,
 )
 from normalize import normalize
@@ -81,24 +82,36 @@ def load_duckdb(df: pd.DataFrame) -> None:
     print(f"Loaded {len(df)} rows into {DUCKDB_PATH}::{DUCKDB_TABLE} ({DUCKDB_WRITE_MODE}).")
 
 
-def main() -> None:
-    gc = gspread.service_account(filename=CREDS_PATH)
+def build_combined_dataframe(gc: gspread.Client, verbose: bool = True) -> pd.DataFrame:
+    """Read + normalize every configured source sheet into one dataframe.
 
+    Shared by the CLI entry point below and by the Streamlit dashboard's
+    cloud fallback path (dashboard/app.py), when there's no local DuckDB
+    file to read from.
+    """
     frames = []
     for src in SOURCE_SHEETS:
-        print(f"Reading {src['label']} ({src['schema']}) ...")
+        if verbose:
+            print(f"Reading {src['label']} ({src['schema']}) ...")
         raw = read_sheet_raw(gc, src["spreadsheet_id"], src["gid"])
         if raw.empty:
-            print(f"  WARNING: {src['label']} came back empty, skipping.")
+            if verbose:
+                print(f"  WARNING: {src['label']} came back empty, skipping.")
             continue
         frames.append(normalize(raw, src["schema"], src["month"]))
-        print(f"  {len(raw)} rows")
+        if verbose:
+            print(f"  {len(raw)} rows")
 
     if not frames:
-        raise SystemExit("No data read from any source sheet — check CREDS_PATH and sharing.")
+        raise RuntimeError("No data read from any source sheet — check credentials and sharing.")
 
-    combined = pd.concat(frames, ignore_index=True)
-    print(f"\nCombined: {len(combined)} rows across {len(frames)} months.")
+    return pd.concat(frames, ignore_index=True)
+
+
+def main() -> None:
+    gc = get_gspread_client()
+    combined = build_combined_dataframe(gc)
+    print(f"\nCombined: {len(combined)} rows across {combined['month'].nunique()} months.")
     print(combined.groupby("month", dropna=False).size())
 
     os.makedirs(os.path.dirname(LOCAL_OUTPUT_CSV), exist_ok=True)

@@ -4,7 +4,11 @@ Run:
     streamlit run dashboard/app.py
 
 Reads the combined dataset from the local DuckDB file produced by
-pipeline/combine_returns.py (config.DUCKDB_PATH / config.DUCKDB_TABLE).
+pipeline/combine_returns.py (config.DUCKDB_PATH / config.DUCKDB_TABLE) when
+that file exists (local dev). Otherwise — e.g. on Streamlit Community
+Cloud, where there's no local file — it pulls straight from Google Sheets
+using the same pipeline code, authenticated via st.secrets (see
+pipeline/auth.py and README's deployment section).
 Dark theme lives in .streamlit/config.toml (native widget theming) plus
 the CSS block below (custom KPI cards, chart chrome).
 """
@@ -19,6 +23,8 @@ import plotly.graph_objects as go
 import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "pipeline"))
+from auth import get_gspread_client  # noqa: E402
+from combine_returns import build_combined_dataframe  # noqa: E402
 from config import DUCKDB_PATH, DUCKDB_TABLE  # noqa: E402
 
 # --- ธีมมืด เน้นชมพู CI — validated with dataviz/scripts/validate_palette.js ---
@@ -178,11 +184,18 @@ def chart_layout(fig: go.Figure, title: str, yaxis_title: str = "") -> go.Figure
     return fig
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=1800)  # 30 นาที — บน Cloud fallback คือดึงจาก Sheets ตรง ๆ ทุกครั้งที่หมดอายุ แคชนานหน่อยกันโหลดถี่เกิน
 def load_data() -> pd.DataFrame:
-    con = duckdb.connect(DUCKDB_PATH, read_only=True)
-    df = con.execute(f"SELECT * FROM {DUCKDB_TABLE}").df()
-    con.close()
+    if os.path.exists(DUCKDB_PATH):
+        # เครื่อง local ที่รัน pipeline/combine_returns.py ไว้แล้ว — อ่านจากไฟล์ที่มีอยู่ (เร็ว)
+        con = duckdb.connect(DUCKDB_PATH, read_only=True)
+        df = con.execute(f"SELECT * FROM {DUCKDB_TABLE}").df()
+        con.close()
+    else:
+        # Streamlit Cloud (หรือเครื่องที่ยังไม่เคยรัน pipeline) — ไม่มีไฟล์ DuckDB ให้อ่าน
+        # ดึงจาก Google Sheets ตรง ๆ แทน ใช้ credential จาก st.secrets (ดู pipeline/auth.py)
+        gc = get_gspread_client()
+        df = build_combined_dataframe(gc, verbose=False)
     df["order_time"] = pd.to_datetime(df["order_time"], errors="coerce")
     # collapse "Flash Express TH_13" / "Flash Express Thailand" -> "Flash Express"
     df["transport_company_group"] = (
