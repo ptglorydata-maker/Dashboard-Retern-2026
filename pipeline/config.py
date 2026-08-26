@@ -24,13 +24,12 @@ SOURCE_SHEETS = [
 
 # --- Output ---
 # Local staging file, written every run so you can eyeball the combined result
-# before it ever touches BigQuery.
+# before it ever touches DuckDB.
 LOCAL_OUTPUT_CSV = "output/returns_2569_combined.csv"
 
-# Set to True once the BigQuery project/dataset below actually exist.
-ENABLE_BQ_LOAD = False
-BQ_PROJECT = "your-gcp-project-id"
-BQ_DATASET = "chargeback_dashboard"
-BQ_TABLE = "returns_2569"
+# Local DuckDB file the combined data gets loaded into (single file, no server needed).
+ENABLE_DUCKDB_LOAD = True
+DUCKDB_PATH = "output/returns_2569.duckdb"
+DUCKDB_TABLE = "returns_2569"
 # "replace" = full reload every run (simplest, fine for this data size); "append" = add only.
-BQ_WRITE_MODE = "replace"
+DUCKDB_WRITE_MODE = "replace"

@@ -6,8 +6,8 @@ Usage:
     # 2. put the service account key at config.CREDS_PATH
     python pipeline/combine_returns.py
 
-Writes a combined CSV to config.LOCAL_OUTPUT_CSV, and — once config.ENABLE_BQ_LOAD
-is turned on — loads the same data into BigQuery.
+Writes a combined CSV to config.LOCAL_OUTPUT_CSV, and — once config.ENABLE_DUCKDB_LOAD
+is turned on — loads the same data into a local DuckDB file (config.DUCKDB_PATH).
 """
 
 import os
@@ -20,7 +20,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(__file__))
 from config import (
     CREDS_PATH, SOURCE_SHEETS, LOCAL_OUTPUT_CSV,
-    ENABLE_BQ_LOAD, BQ_PROJECT, BQ_DATASET, BQ_TABLE, BQ_WRITE_MODE,
+    ENABLE_DUCKDB_LOAD, DUCKDB_PATH, DUCKDB_TABLE, DUCKDB_WRITE_MODE,
 )
 from normalize import normalize
 
@@ -64,18 +64,21 @@ def read_sheet_raw(gc: gspread.Client, spreadsheet_id: str, gid: int) -> pd.Data
     return df.dropna(how="all")
 
 
-def load_bigquery(df: pd.DataFrame) -> None:
-    from google.cloud import bigquery
-    from google.cloud.bigquery import LoadJobConfig, WriteDisposition
+def load_duckdb(df: pd.DataFrame) -> None:
+    import duckdb
 
-    client = bigquery.Client(project=BQ_PROJECT)
-    table_ref = f"{BQ_PROJECT}.{BQ_DATASET}.{BQ_TABLE}"
-    disposition = (
-        WriteDisposition.WRITE_TRUNCATE if BQ_WRITE_MODE == "replace" else WriteDisposition.WRITE_APPEND
-    )
-    job = client.load_table_from_dataframe(df, table_ref, job_config=LoadJobConfig(write_disposition=disposition))
-    job.result()
-    print(f"Loaded {len(df)} rows into {table_ref} ({BQ_WRITE_MODE}).")
+    os.makedirs(os.path.dirname(DUCKDB_PATH), exist_ok=True)
+    con = duckdb.connect(DUCKDB_PATH)
+    try:
+        if DUCKDB_WRITE_MODE == "replace" or not con.execute(
+            "SELECT count(*) FROM information_schema.tables WHERE table_name = ?", [DUCKDB_TABLE]
+        ).fetchone()[0]:
+            con.execute(f"CREATE OR REPLACE TABLE {DUCKDB_TABLE} AS SELECT * FROM df")
+        else:
+            con.execute(f"INSERT INTO {DUCKDB_TABLE} SELECT * FROM df")
+    finally:
+        con.close()
+    print(f"Loaded {len(df)} rows into {DUCKDB_PATH}::{DUCKDB_TABLE} ({DUCKDB_WRITE_MODE}).")
 
 
 def main() -> None:
@@ -102,10 +105,10 @@ def main() -> None:
     combined.to_csv(LOCAL_OUTPUT_CSV, index=False, encoding="utf-8-sig")
     print(f"\nWrote {LOCAL_OUTPUT_CSV}")
 
-    if ENABLE_BQ_LOAD:
-        load_bigquery(combined)
+    if ENABLE_DUCKDB_LOAD:
+        load_duckdb(combined)
     else:
-        print("ENABLE_BQ_LOAD is False — skipped BigQuery load. Set it in config.py once the dataset exists.")
+        print("ENABLE_DUCKDB_LOAD is False — skipped DuckDB load.")
 
 
 if __name__ == "__main__":

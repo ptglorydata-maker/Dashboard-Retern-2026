@@ -59,19 +59,20 @@ pip install -r requirements.txt
 
    จะได้ไฟล์ `output/returns_2569_combined.csv` ไว้เช็คข้อมูลก่อนเสมอ
 
-## ต่อ BigQuery
+## ต่อ DuckDB
 
-แก้ `pipeline/config.py`:
+ค่าเริ่มต้นเปิดไว้แล้ว (`ENABLE_DUCKDB_LOAD = True` ใน `pipeline/config.py`) ทุกครั้งที่รัน
+`python pipeline/combine_returns.py` ข้อมูลรวมจะถูกโหลดเข้าไฟล์ DuckDB เดียว (ไม่ต้องตั้ง server ใด ๆ)
+ที่ `output/returns_2569.duckdb` ตาราง `returns_2569` ด้วย (แก้ path/ชื่อตารางได้ที่ `DUCKDB_PATH`, `DUCKDB_TABLE`)
 
-```python
-ENABLE_BQ_LOAD = True
-BQ_PROJECT = "<project id จริง>"
-BQ_DATASET = "chargeback_dashboard"
+รันสคริปต์ซ้ำจะโหลดข้อมูลทับทั้งหมด (`DUCKDB_WRITE_MODE = "replace"`) — เหมาะกับขนาดข้อมูลระดับนี้
+ไม่ต้องทำ incremental load
+
+เปิดดู/query ไฟล์นี้ได้ตรง ๆ ด้วย DuckDB CLI หรือ Python:
+
+```bash
+python -c "import duckdb; print(duckdb.connect('output/returns_2569.duckdb').sql('SELECT * FROM returns_2569 LIMIT 10'))"
 ```
-
-ต้องสร้าง dataset ใน BigQuery ก่อน (ครั้งเดียว) แล้ว service account ต้องมีสิทธิ์
-`BigQuery Data Editor` + `BigQuery Job User` บน project นั้น รันสคริปต์ซ้ำจะโหลดข้อมูลทับ
-ทั้งหมด (`BQ_WRITE_MODE = "replace"`) — เหมาะกับขนาดข้อมูลระดับนี้ ไม่ต้องทำ incremental load
 
 ## สิ่งที่ต้องตรวจสอบก่อนเชื่อผลลัพธ์ 100%
 
