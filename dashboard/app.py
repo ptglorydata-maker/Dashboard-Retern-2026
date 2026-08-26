@@ -93,6 +93,16 @@ def rate_table(data: pd.DataFrame, group_col: str, min_orders: int = 0) -> pd.Da
     return out[out["orders"] >= min_orders]
 
 
+def sales_table(data: pd.DataFrame, group_col: str) -> pd.DataFrame:
+    out = (
+        data.groupby(group_col)
+        .agg(orders=(group_col, "size"), revenue=("product_price", "sum"), returns=("is_returned", "sum"))
+        .reset_index()
+    )
+    out["rate"] = (out["returns"] / out["orders"] * 100).round(2)
+    return out.sort_values("revenue", ascending=False)
+
+
 df = load_data()
 
 with st.sidebar:
@@ -247,6 +257,16 @@ with tab_geo:
         st.plotly_chart(
             chart_layout(fig, "% ตีกลับ ตามพนักงานขาย (Top 10)", "% ตีกลับ"), use_container_width=True
         )
+
+    st.markdown("#### จัดอันดับพนักงานขาย ตามยอดขายรวม")
+    st.caption(
+        "เรียงตามยอดขายรวม (ไม่กรองด้วยเกณฑ์ใด ๆ) — ระวังชื่อที่มีคำว่า \"เทส\"/\"ทดสอบ\" "
+        "หรือ shop = Venorra(สินค้าเทส) คือข้อมูลทดสอบระบบ ไม่ใช่ยอดขายจริง"
+    )
+    sales_rank = sales_table(filtered, "salesperson")
+    sales_rank.insert(0, "อันดับ", range(1, len(sales_rank) + 1))
+    sales_rank.columns = ["อันดับ", "พนักงานขาย", "ออเดอร์", "ยอดขายรวม (บาท)", "ตีกลับ", "% ตีกลับ"]
+    st.dataframe(sales_rank, use_container_width=True, hide_index=True, height=400)
 
 with tab_table:
     st.markdown("#### สรุปตามร้านค้า")
