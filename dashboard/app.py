@@ -42,12 +42,41 @@ KPI_ICONS = ["📦", "↩️", "📉", "💸"]
 
 LOGO_PATH = os.path.join(os.path.dirname(__file__), "..", "assets", "logo-01.png")
 MIN_ORDERS_FOR_RATE = 30  # ตัดจังหวัด/พนักงานขายที่ออเดอร์น้อยเกินไป (% ตีกลับ ผันผวนไม่มีนัยสำคัญ)
+ALL_OPTION = "ทั้งหมด"
+
+THAI_MONTHS_FULL = [
+    "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+    "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
+]
+THAI_MONTHS_ABBR = [
+    "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+    "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค.",
+]
+
+
+def thai_month(month_str: str, abbr: bool = False) -> str:
+    """'2026-01' -> 'มกราคม 69' (พ.ศ. 2 หลัก) ใช้แสดงในตัวกรอง/แกนกราฟ/หัวข้อ"""
+    year, mo = month_str.split("-")
+    be_2digit = (int(year) + 543) % 100
+    name = (THAI_MONTHS_ABBR if abbr else THAI_MONTHS_FULL)[int(mo) - 1]
+    return f"{name} {be_2digit}"
+
 
 st.set_page_config(page_title="Dashboard สินค้าตีกลับ 2569 - PT Glory", page_icon="🎀", layout="wide")
 
 st.markdown(
+    """
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    """,
+    unsafe_allow_html=True,
+)
+
+st.markdown(
     f"""
     <style>
+    html, body, .stApp, [class*="css"] {{ font-family: 'Kanit', sans-serif; }}
     .stApp {{ background-color: {APP_BG}; }}
     .block-container {{ padding-top: 2rem; max-width: 1450px; }}
     h1 {{ color: {TEXT}; font-weight: 700; }}
@@ -58,6 +87,8 @@ st.markdown(
     button[data-baseweb="tab"][aria-selected="true"] {{ color: {PRIMARY}; }}
     [data-testid="stDataFrame"] {{ border: 1px solid {CARD_BORDER}; border-radius: 10px; }}
     hr {{ border-color: {CARD_BORDER}; }}
+    /* ตัวเลขใช้ Roboto ตามที่ขอ — ค่า KPI ใหญ่ + ตัวเลข delta */
+    .kpi-value, .kpi-delta {{ font-family: 'Roboto', sans-serif; }}
 
     .kpi-card {{
         background: linear-gradient(160deg, {CARD_BG} 0%, #241621 100%);
@@ -128,18 +159,22 @@ def kpi_card(label: str, value: str, delta: float | None, delta_fmt: str, icon: 
 
 def chart_layout(fig: go.Figure, title: str, yaxis_title: str = "") -> go.Figure:
     fig.update_layout(
-        title=dict(text=title, font=dict(color=TEXT, size=15)),
+        title=dict(text=title, font=dict(color=TEXT, size=15, family="Kanit, sans-serif")),
         yaxis_title=yaxis_title,
         xaxis_title="",
         plot_bgcolor=CARD_BG,
         paper_bgcolor=CARD_BG,
-        font_color=TEXT_MUTED,
+        font=dict(color=TEXT_MUTED, family="Kanit, sans-serif"),
         hovermode="x unified",
         margin=dict(t=48, l=10, r=10, b=10),
-        legend=dict(font=dict(color=TEXT_MUTED)),
+        legend=dict(font=dict(color=TEXT_MUTED, family="Kanit, sans-serif")),
     )
-    fig.update_xaxes(showgrid=False, color=TEXT_MUTED)
-    fig.update_yaxes(showgrid=True, gridcolor=GRID, zeroline=False, color=TEXT_MUTED)
+    # แกนตัวเลข (ค่า/สัดส่วน) ใช้ Roboto ตามที่ขอ, แกนที่เป็นข้อความ (หมวดหมู่/เดือนไทย) ใช้ Kanit
+    fig.update_xaxes(showgrid=False, color=TEXT_MUTED, tickfont=dict(family="Kanit, sans-serif"))
+    fig.update_yaxes(
+        showgrid=True, gridcolor=GRID, zeroline=False, color=TEXT_MUTED,
+        tickfont=dict(family="Roboto, sans-serif"),
+    )
     return fig
 
 
@@ -185,37 +220,48 @@ with st.sidebar:
     st.markdown("### ตัวกรอง")
 
     months = sorted(df["month"].dropna().unique())
-    selected_months = st.multiselect("เดือน", months, default=months)
+    selected_month_opt = st.selectbox(
+        "เดือน", [ALL_OPTION] + months,
+        format_func=lambda m: "ทั้งหมด (ม.ค.-ก.ค. 69)" if m == ALL_OPTION else thai_month(m),
+    )
 
     channels = sorted(df["sales_channel"].dropna().unique())
-    selected_channels = st.multiselect("ช่องทางขาย", channels, default=channels)
+    selected_channel_opt = st.selectbox("ช่องทางขาย", [ALL_OPTION] + channels)
 
     transports = sorted(df["transport_company_group"].dropna().unique())
-    selected_transports = st.multiselect("บริษัทขนส่ง", transports, default=transports)
+    selected_transport_opt = st.selectbox("บริษัทขนส่ง", [ALL_OPTION] + transports)
 
-filtered = df[df["month"].isin(selected_months)]
-if selected_channels:
-    filtered = filtered[filtered["sales_channel"].isin(selected_channels) | filtered["sales_channel"].isna()]
-if selected_transports:
-    filtered = filtered[filtered["transport_company_group"].isin(selected_transports)]
+# กรองตามช่องทาง/ขนส่งก่อน (ไม่รวมเดือน) ไว้เป็นฐานสำหรับกราฟเทรนด์ + คำนวณ MoM
+# ให้ยังเทียบกับเดือนก่อนหน้าได้ถูกต้อง แม้ตัวกรองเดือนจะเลือกแค่เดือนเดียว
+base = df.copy()
+if selected_channel_opt != ALL_OPTION:
+    base = base[base["sales_channel"] == selected_channel_opt]
+if selected_transport_opt != ALL_OPTION:
+    base = base[base["transport_company_group"] == selected_transport_opt]
+
+if selected_month_opt == ALL_OPTION:
+    filtered = base
+    cur_month = months[-1] if months else None
+else:
+    filtered = base[base["month"] == selected_month_opt]
+    cur_month = selected_month_opt
+
+month_idx = months.index(cur_month) if cur_month in months else -1
+prev_month = months[month_idx - 1] if month_idx > 0 else None
 
 st.title("📊 Dashboard สินค้าตีกลับ ปี 2569")
 st.caption("PT Glory Interplus — ข้อมูลรวมจากชีต Google Sheets รายเดือน")
 
-# --- ข้อมูลรายเดือน (ใช้ทั้งกราฟหลักและ sparkline การ์ด KPI) ---
-monthly = rate_table(filtered, "month").sort_values("month")
+# --- ข้อมูลรายเดือนแบบเต็ม (ไม่ตัดตามตัวกรองเดือน) ใช้กับกราฟเทรนด์และ sparkline การ์ด KPI ---
+monthly = rate_table(base, "month").sort_values("month")
 monthly["value"] = (
-    filtered[filtered["is_returned"]].groupby("month")["product_price"].sum().reindex(monthly["month"]).fillna(0).values
+    base[base["is_returned"]].groupby("month")["product_price"].sum().reindex(monthly["month"]).fillna(0).values
 )
-
-# --- KPI + MoM (เทียบเดือนล่าสุดที่เลือก กับเดือนก่อนหน้าในตัวกรอง) ---
-selected_sorted = sorted(selected_months)
-cur_month = selected_sorted[-1] if selected_sorted else None
-prev_month = selected_sorted[-2] if len(selected_sorted) >= 2 else None
+monthly["month_label"] = monthly["month"].apply(lambda m: thai_month(m, abbr=True))
 
 
 def month_stats(month: str) -> dict:
-    sub = filtered[filtered["month"] == month]
+    sub = base[base["month"] == month]
     orders = len(sub)
     returns = int(sub["is_returned"].sum())
     rate = (returns / orders * 100) if orders else 0.0
@@ -238,7 +284,7 @@ if prev_month:
         "rate": round(cur["rate"] - prev["rate"], 2),
         "value": cur["value"] - prev["value"],
     }
-    st.caption(f"เทียบ MoM: {cur_month} vs {prev_month}")
+    st.caption(f"เทียบ MoM: {thai_month(cur_month)} vs {thai_month(prev_month)}")
 
 kc1, kc2, kc3, kc4 = st.columns(4)
 kc1.markdown(
@@ -288,14 +334,14 @@ with tab_overview:
     fig_hero = go.Figure()
     fig_hero.add_trace(
         go.Scatter(
-            x=monthly["month"], y=monthly["orders"], name="ออเดอร์ทั้งหมด",
+            x=monthly["month_label"], y=monthly["orders"], name="ออเดอร์ทั้งหมด",
             mode="lines", line=dict(color=NEUTRAL, width=2),
             fill="tozeroy", fillcolor="rgba(185,167,176,0.12)",
         )
     )
     fig_hero.add_trace(
         go.Scatter(
-            x=monthly["month"], y=monthly["returns"], name="ตีกลับ",
+            x=monthly["month_label"], y=monthly["returns"], name="ตีกลับ",
             mode="lines+markers", line=dict(color=PRIMARY, width=3),
             fill="tozeroy", fillcolor="rgba(255,111,165,0.18)",
             marker=dict(size=6),
@@ -410,6 +456,7 @@ with tab_table:
     pivot = filtered.pivot_table(
         index="month", columns="sales_channel", values="is_returned", aggfunc="mean"
     ).mul(100).round(2)
+    pivot.index = pivot.index.map(thai_month)
     st.dataframe(pivot, use_container_width=True)
 
 with tab_raw:
