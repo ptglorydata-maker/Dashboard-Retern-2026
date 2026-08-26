@@ -544,8 +544,8 @@ with tab_overview:
         use_container_width=True,
     )
 
-    col_donut, col_products = st.columns([1, 1.4])
-    with col_donut:
+    col1, col2, col3 = st.columns(3)
+    with col1:
         by_channel_orders = filtered.groupby("sales_channel").size().reset_index(name="orders")
         by_channel_orders = by_channel_orders.sort_values("orders", ascending=False)
         # โดนัทวงกลม = ทุกชิ้นอยู่ติดกันหมด (all-pairs) — ใช้ได้แค่ 3 สีตาม palette.md แล้วพับ
@@ -563,53 +563,68 @@ with tab_overview:
             unsafe_allow_html=True,
         )
 
-    with col_products:
-        top_products = (
-            filtered[filtered["is_returned"]]
-            .groupby("product_name")
-            .size()
-            .sort_values(ascending=False)
-            .head(8)
-            .reset_index(name="returns")
-        )
-        items = [(row.product_name, row.returns, f"{row.returns:,}") for row in top_products.itertuples()]
+    # แบ่ง Top 8 สินค้าตีกลับเป็น 2 คอลัมน์ (4+4) แทนลิสต์เดียวยาว ๆ — การ์ดเตี้ยลง หน้าตากว้างขึ้น
+    top_products = (
+        filtered[filtered["is_returned"]]
+        .groupby("product_name")
+        .size()
+        .sort_values(ascending=False)
+        .head(8)
+        .reset_index(name="returns")
+    )
+    items = [(row.product_name, row.returns, f"{row.returns:,}") for row in top_products.itertuples()]
+    with col2:
         st.markdown(
-            ranked_list_card("สินค้าที่ถูกตีกลับมากที่สุด (Top 8)", items, CHART_PRODUCTS),
+            ranked_list_card("สินค้าที่ถูกตีกลับมากที่สุด (1-4)", items[:4], CHART_PRODUCTS),
+            unsafe_allow_html=True,
+        )
+    with col3:
+        st.markdown(
+            ranked_list_card("สินค้าที่ถูกตีกลับมากที่สุด (5-8)", items[4:8], CHART_PRODUCTS),
             unsafe_allow_html=True,
         )
 
 with tab_channel:
-    col_a, col_b = st.columns(2)
-    with col_a:
-        by_channel = rate_table(filtered, "sales_channel").sort_values("rate", ascending=False)
+    by_channel = rate_table(filtered, "sales_channel").sort_values("rate", ascending=False)
+    by_transport = rate_table(filtered, "transport_company_group").sort_values("rate", ascending=False).head(10)
+    transport_items = [(row.transport_company_group, row.rate, f"{row.rate:.2f}%") for row in by_transport.itertuples()]
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
         items = [(row.sales_channel, row.rate, f"{row.rate:.2f}%") for row in by_channel.itertuples()]
         st.markdown(ranked_list_card("% ตีกลับ ตามช่องทางขาย", items, CHART_CHANNEL), unsafe_allow_html=True)
-    with col_b:
-        by_transport = (
-            rate_table(filtered, "transport_company_group").sort_values("rate", ascending=False).head(10)
-        )
-        items = [(row.transport_company_group, row.rate, f"{row.rate:.2f}%") for row in by_transport.itertuples()]
+    with col2:
         st.markdown(
-            ranked_list_card("% ตีกลับ ตามบริษัทขนส่ง (Top 10)", items, CHART_TRANSPORT), unsafe_allow_html=True
+            ranked_list_card("% ตีกลับ ตามบริษัทขนส่ง (1-5)", transport_items[:5], CHART_TRANSPORT),
+            unsafe_allow_html=True,
+        )
+    with col3:
+        st.markdown(
+            ranked_list_card("% ตีกลับ ตามบริษัทขนส่ง (6-10)", transport_items[5:10], CHART_TRANSPORT),
+            unsafe_allow_html=True,
         )
 
 with tab_geo:
     st.caption(f"แสดงเฉพาะกลุ่มที่มีออเดอร์ >= {MIN_ORDERS_FOR_RATE} รายการ ในช่วงที่กรองไว้ เพื่อลด noise จากฐานเล็กเกินไป")
-    col_a, col_b = st.columns(2)
-    with col_a:
-        by_province = (
-            rate_table(filtered, "province", MIN_ORDERS_FOR_RATE).sort_values("rate", ascending=False).head(10)
-        )
-        items = [(row.province, row.rate, f"{row.rate:.2f}%") for row in by_province.itertuples()]
-        st.markdown(ranked_list_card("% ตีกลับ ตามจังหวัด (Top 10)", items, CHART_PROVINCE), unsafe_allow_html=True)
-    with col_b:
-        by_sales = (
-            rate_table(filtered, "salesperson", MIN_ORDERS_FOR_RATE).sort_values("rate", ascending=False).head(10)
-        )
-        items = [(row.salesperson, row.rate, f"{row.rate:.2f}%") for row in by_sales.itertuples()]
-        st.markdown(
-            ranked_list_card("% ตีกลับ ตามพนักงานขาย (Top 10)", items, CHART_SALESPERSON), unsafe_allow_html=True
-        )
+    by_province = (
+        rate_table(filtered, "province", MIN_ORDERS_FOR_RATE).sort_values("rate", ascending=False).head(10)
+    )
+    by_sales = (
+        rate_table(filtered, "salesperson", MIN_ORDERS_FOR_RATE).sort_values("rate", ascending=False).head(10)
+    )
+    province_items = [(row.province, row.rate, f"{row.rate:.2f}%") for row in by_province.itertuples()]
+    sales_items = [(row.salesperson, row.rate, f"{row.rate:.2f}%") for row in by_sales.itertuples()]
+
+    # แบ่ง Top 10 ทั้งสองชุดเป็น 2 ครึ่งต่อชุด รวม 4 คอลัมน์ในแถวเดียว แทนลิสต์ยาว 2 คอลัมน์
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.markdown(ranked_list_card("% ตีกลับ ตามจังหวัด (1-5)", province_items[:5], CHART_PROVINCE), unsafe_allow_html=True)
+    with col2:
+        st.markdown(ranked_list_card("% ตีกลับ ตามจังหวัด (6-10)", province_items[5:10], CHART_PROVINCE), unsafe_allow_html=True)
+    with col3:
+        st.markdown(ranked_list_card("% ตีกลับ ตามพนักงานขาย (1-5)", sales_items[:5], CHART_SALESPERSON), unsafe_allow_html=True)
+    with col4:
+        st.markdown(ranked_list_card("% ตีกลับ ตามพนักงานขาย (6-10)", sales_items[5:10], CHART_SALESPERSON), unsafe_allow_html=True)
 
     st.markdown("#### จัดอันดับพนักงานขาย ตามยอดขายรวม")
     st.caption(
