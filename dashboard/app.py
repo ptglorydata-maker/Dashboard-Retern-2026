@@ -99,98 +99,103 @@ st.markdown(
         font-family: 'Kanit', sans-serif !important;
     }}
     .stApp {{ background-color: {APP_BG}; }}
-    .block-container {{ padding-top: 1.2rem; max-width: 1450px; }}
+    .block-container {{ padding-top: 1.8rem; padding-bottom: 3rem; max-width: 1450px; }}
     h1 {{ color: {TEXT}; font-weight: 700; }}
     h2, h3, h4 {{ color: {TEXT}; font-weight: 600; }}
-    p, .stCaption, [data-testid="stCaptionContainer"] {{ color: {TEXT_MUTED}; }}
+    p, .stCaption, [data-testid="stCaptionContainer"] {{ color: {TEXT_MUTED}; line-height: 1.6; }}
     section[data-testid="stSidebar"] {{ background-color: {CARD_BG}; border-right: 1px solid {CARD_BORDER}; }}
+    section[data-testid="stSidebar"] .block-container {{ padding-top: 2rem; }}
     div[data-baseweb="tab-highlight"] {{ background-color: {PRIMARY}; }}
     button[data-baseweb="tab"][aria-selected="true"] {{ color: {PRIMARY}; }}
-    [data-testid="stDataFrame"] {{ border: 1px solid {CARD_BORDER}; border-radius: 10px; }}
-    hr {{ border-color: {CARD_BORDER}; }}
+    button[data-baseweb="tab"] {{ padding-top: 10px; padding-bottom: 10px; }}
+    [data-testid="stDataFrame"] {{ border: 1px solid {CARD_BORDER}; border-radius: 12px; }}
+    hr {{ border-color: {CARD_BORDER}; margin: 1.75rem 0; }}
+    /* เว้นช่องว่างระหว่างคอลัมน์/การ์ดให้โล่งขึ้น ตามโจทย์ "มินิมอล" */
+    [data-testid="stHorizontalBlock"] {{ gap: 1.5rem; flex-wrap: nowrap; }}
+    [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{ min-width: 0; }}
     /* ตัวเลขใช้ Roboto ตามที่ขอ — ทับ Kanit เฉพาะจุดที่เป็นตัวเลขล้วน */
     .kpi-value, .kpi-delta, .num-font {{ font-family: 'Roboto', sans-serif !important; }}
 
-    /* --- navbar บนสุด --- */
+    /* --- navbar บนสุด: ไม่มีเส้นขอบ ใช้เงานุ่มแทน (การ์ด "ลอย" แบบมินิมอล) --- */
     .topbar {{
         display: flex; align-items: center; justify-content: space-between;
         background: {CARD_BG};
-        border: 1px solid {CARD_BORDER};
-        border-radius: 16px;
-        padding: 14px 22px;
-        margin-bottom: 18px;
-        box-shadow: 0 2px 14px rgba(22,27,34,0.06);
+        border: none;
+        border-radius: 20px;
+        padding: 20px 28px;
+        margin-bottom: 28px;
+        box-shadow: 0 2px 24px rgba(22,27,34,0.05);
     }}
-    .topbar-title {{ display: flex; align-items: center; gap: 12px; }}
-    .topbar-title .emoji {{ font-size: 1.6rem; }}
-    .topbar-title h1 {{ margin: 0; font-size: 1.3rem; }}
-    .topbar-title .sub {{ color: {TEXT_MUTED}; font-size: 0.78rem; margin-top: 2px; }}
+    .topbar-title {{ display: flex; align-items: center; gap: 14px; }}
+    .topbar-title .emoji {{ font-size: 1.8rem; }}
+    .topbar-title h1 {{ margin: 0; font-size: 1.4rem; }}
+    .topbar-title .sub {{ color: {TEXT_MUTED}; font-size: 0.82rem; margin-top: 3px; }}
     .topbar-pill {{
         display: flex; align-items: center; gap: 6px;
-        background: rgba(211,75,130,0.08);
-        border: 1px solid rgba(211,75,130,0.25);
-        color: {PRIMARY}; font-size: 0.78rem; font-weight: 500;
-        padding: 6px 14px; border-radius: 999px;
+        background: rgba(211,75,130,0.07);
+        border: none;
+        color: {PRIMARY}; font-size: 0.8rem; font-weight: 500;
+        padding: 7px 16px; border-radius: 999px;
     }}
     .topbar-pill .dot {{
         width: 7px; height: 7px; border-radius: 50%; background: {POSITIVE};
         box-shadow: 0 0 6px {POSITIVE};
     }}
 
-    /* --- การ์ด KPI: สีต่างกันต่อใบตาม badge, เงานุ่มแบบ SaaS --- */
+    /* --- การ์ด KPI: ลอยด้วยเงานุ่ม ไม่มีเส้นขอบ ให้ความรู้สึกโล่ง/สะอาดตา --- */
     .kpi-card {{
         background: {CARD_BG};
-        border: 1px solid {CARD_BORDER};
-        border-radius: 14px;
-        padding: 14px 16px 6px 16px;
-        box-shadow: 0 4px 16px rgba(22,27,34,0.06);
+        border: none;
+        border-radius: 18px;
+        padding: 22px 24px 14px 24px;
+        box-shadow: 0 2px 20px rgba(22,27,34,0.05);
         transition: box-shadow 0.15s ease;
     }}
-    .kpi-top {{ display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }}
+    .kpi-top {{ display: flex; align-items: center; gap: 11px; margin-bottom: 14px; }}
     .kpi-icon {{
-        width: 34px; height: 34px; border-radius: 10px;
+        width: 38px; height: 38px; border-radius: 11px;
         display: flex; align-items: center; justify-content: center;
-        font-size: 16px;
+        font-size: 17px;
     }}
-    .kpi-label {{ color: {TEXT_MUTED}; font-size: 0.8rem; }}
-    .kpi-value {{ color: {TEXT}; font-size: 1.5rem; font-weight: 700; line-height: 1.15; }}
-    .kpi-delta {{ font-size: 0.78rem; margin-top: 1px; }}
+    .kpi-label {{ color: {TEXT_MUTED}; font-size: 0.85rem; }}
+    .kpi-value {{ color: {TEXT}; font-size: 1.65rem; font-weight: 700; line-height: 1.15; }}
+    .kpi-delta {{ font-size: 0.82rem; margin-top: 3px; }}
     .kpi-delta.up {{ color: {POSITIVE}; }}
     .kpi-delta.down {{ color: {NEGATIVE}; }}
     .kpi-sub {{ color: {TEXT_MUTED}; font-size: 0.7rem; margin-bottom: 4px; }}
-    .kpi-spark {{ margin: 4px -2px -2px -2px; }}
+    .kpi-spark {{ margin: 10px -2px -2px -2px; }}
 
     /* --- ห่อกราฟ Plotly ให้เป็นการ์ดสไตล์เดียวกับ KPI --- */
     [data-testid="stPlotlyChart"] {{
         background: {CARD_BG};
-        border: 1px solid {CARD_BORDER};
-        border-radius: 14px;
-        padding: 6px 10px 2px 10px;
-        box-shadow: 0 4px 16px rgba(22,27,34,0.06);
+        border: none;
+        border-radius: 18px;
+        padding: 10px 14px 4px 14px;
+        box-shadow: 0 2px 20px rgba(22,27,34,0.05);
     }}
 
     /* --- การ์ด HTML กำหนดเอง: โดนัท+legend, ranked list --- */
     .chart-card {{
         background: {CARD_BG};
-        border: 1px solid {CARD_BORDER};
-        border-radius: 14px;
-        padding: 16px 18px;
-        box-shadow: 0 4px 16px rgba(22,27,34,0.06);
+        border: none;
+        border-radius: 18px;
+        padding: 24px 26px;
+        box-shadow: 0 2px 20px rgba(22,27,34,0.05);
         height: 100%;
     }}
-    .chart-card-title {{ font-size: 0.95rem; font-weight: 600; color: {TEXT}; margin-bottom: 14px; }}
-    .rank-row {{ margin-bottom: 12px; }}
+    .chart-card-title {{ font-size: 1.02rem; font-weight: 600; color: {TEXT}; margin-bottom: 20px; }}
+    .rank-row {{ margin-bottom: 16px; }}
     .rank-row:last-child {{ margin-bottom: 0; }}
-    .rank-row-top {{ display: flex; justify-content: space-between; font-size: 0.82rem; margin-bottom: 4px; }}
+    .rank-row-top {{ display: flex; justify-content: space-between; font-size: 0.88rem; margin-bottom: 6px; }}
     .rank-row-label {{ color: {TEXT}; }}
     .rank-row-value {{ color: {TEXT_MUTED}; font-weight: 600; }}
     .rank-row-track {{ background: {GRID}; border-radius: 4px; height: 7px; overflow: hidden; }}
     .rank-row-fill {{ height: 100%; border-radius: 4px; }}
-    .legend-row {{ display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }}
+    .legend-row {{ display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }}
     .legend-row:last-child {{ margin-bottom: 0; }}
     .legend-dot {{ width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }}
-    .legend-label {{ flex: 1; font-size: 0.82rem; color: {TEXT}; }}
-    .legend-value {{ font-size: 0.82rem; color: {TEXT_MUTED}; }}
+    .legend-label {{ flex: 1; font-size: 0.88rem; color: {TEXT}; }}
+    .legend-value {{ font-size: 0.88rem; color: {TEXT_MUTED}; }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -391,7 +396,7 @@ df = load_data()
 
 with st.sidebar:
     if os.path.exists(LOGO_PATH):
-        st.image(LOGO_PATH, width=140)
+        st.image(LOGO_PATH, width=220)
     st.markdown("### ตัวกรอง")
 
     months = sorted(df["month"].dropna().unique())
