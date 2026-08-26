@@ -8,28 +8,28 @@ pipeline/combine_returns.py (config.DUCKDB_PATH / config.DUCKDB_TABLE).
 """
 
 import os
-import re
 import sys
 
 import duckdb
 import pandas as pd
-import plotly.graph_objects as go
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "pipeline"))
 from config import DUCKDB_PATH, DUCKDB_TABLE  # noqa: E402
 
-# --- CI PT Glory ---
-PRIMARY = "#D34B82"       # ชมพู (สีหลัก)
-DARK = "#492E18"          # น้ำตาลเข้ม (สีรอง)
-LIGHT_PINK = "#F2C6DA"
-MED_BROWN = "#8C5B3F"
+# --- CI PT Glory — validated with dataviz/scripts/validate_palette.js ---
+# "#D34B82,#9C5A2E" passes all six categorical checks (light mode).
+PRIMARY = "#D34B82"       # ชมพู (สีหลัก) — ใช้กับเมตริก/กราฟที่เป็นตัวเด่น (% ตีกลับ)
+SECONDARY = "#9C5A2E"     # น้ำตาล (ปรับจาก CI #492E18 ให้ผ่านเกณฑ์ contrast/chroma) — ใช้กับปริมาณ/บริบท
+DARK_TEXT = "#492E18"     # สี CI ต้นฉบับ ใช้เป็นสีตัวอักษร/หัวข้อเท่านั้น (ไม่ใช่สีข้อมูลในกราฟ)
 BG = "#FFFBFC"
 CARD_BG = "#FFFFFF"
-CATEGORICAL = [PRIMARY, DARK, "#EFA0C1", MED_BROWN, "#F6D9E6", "#6E4A2E"]
+GRID = "#EFE3E8"
 
 LOGO_PATH = os.path.join(os.path.dirname(__file__), "..", "assets", "logo-01.png")
+MIN_ORDERS_FOR_RATE = 30  # ตัดจังหวัด/พนักงานขายที่ออเดอร์น้อยเกินไป (% ตีกลับ ผันผวนไม่มีนัยสำคัญ)
 
 st.set_page_config(page_title="Dashboard สินค้าตีกลับ 2569 - PT Glory", page_icon="🎀", layout="wide")
 
@@ -39,18 +39,34 @@ st.markdown(
     .stApp {{ background-color: {BG}; }}
     [data-testid="stMetric"] {{
         background-color: {CARD_BG};
-        border: 1px solid {LIGHT_PINK};
+        border: 1px solid {GRID};
         border-radius: 10px;
         padding: 12px 16px;
     }}
-    [data-testid="stMetricLabel"] {{ color: {DARK}; }}
-    [data-testid="stMetricValue"] {{ color: {PRIMARY}; font-size: 1.6rem; }}
-    h1, h2, h3 {{ color: {DARK}; }}
+    [data-testid="stMetricLabel"] {{ color: {DARK_TEXT}; }}
+    [data-testid="stMetricValue"] {{ color: {PRIMARY}; font-size: 1.5rem; }}
+    h1, h2, h3 {{ color: {DARK_TEXT}; }}
     section[data-testid="stSidebar"] {{ background-color: {CARD_BG}; }}
     </style>
     """,
     unsafe_allow_html=True,
 )
+
+
+def chart_layout(fig: go.Figure, title: str, yaxis_title: str = "") -> go.Figure:
+    fig.update_layout(
+        title=title,
+        yaxis_title=yaxis_title,
+        xaxis_title="",
+        plot_bgcolor=CARD_BG,
+        paper_bgcolor=CARD_BG,
+        font_color=DARK_TEXT,
+        hovermode="x unified",
+        margin=dict(t=48, l=10, r=10, b=10),
+    )
+    fig.update_xaxes(showgrid=False)
+    fig.update_yaxes(showgrid=True, gridcolor=GRID, zeroline=False)
+    return fig
 
 
 @st.cache_data(ttl=300)
@@ -65,6 +81,16 @@ def load_data() -> pd.DataFrame:
     )
     df.loc[df["transport_company_group"] == "", "transport_company_group"] = "ไม่ระบุ"
     return df
+
+
+def rate_table(data: pd.DataFrame, group_col: str, min_orders: int = 0) -> pd.DataFrame:
+    out = (
+        data.groupby(group_col)
+        .agg(orders=(group_col, "size"), returns=("is_returned", "sum"))
+        .reset_index()
+    )
+    out["rate"] = (out["returns"] / out["orders"] * 100).round(2)
+    return out[out["orders"] >= min_orders]
 
 
 df = load_data()
@@ -92,98 +118,154 @@ if selected_transports:
 st.title("📊 Dashboard สินค้าตีกลับ ปี 2569")
 st.caption("PT Glory Interplus — ข้อมูลรวมจากชีต Google Sheets รายเดือน")
 
+# --- KPI + MoM (เทียบเดือนล่าสุดที่เลือก กับเดือนก่อนหน้าในตัวกรอง) ---
+selected_sorted = sorted(selected_months)
+cur_month = selected_sorted[-1] if selected_sorted else None
+prev_month = selected_sorted[-2] if len(selected_sorted) >= 2 else None
+
+def month_stats(month: str) -> dict:
+    sub = filtered[filtered["month"] == month]
+    orders = len(sub)
+    returns = int(sub["is_returned"].sum())
+    rate = (returns / orders * 100) if orders else 0.0
+    value = sub.loc[sub["is_returned"], "product_price"].sum()
+    return {"orders": orders, "returns": returns, "rate": rate, "value": value}
+
 total_orders = len(filtered)
 total_returns = int(filtered["is_returned"].sum())
 return_rate = (total_returns / total_orders * 100) if total_orders else 0.0
 returned_value = filtered.loc[filtered["is_returned"], "product_price"].sum()
 
+deltas = {"orders": None, "returns": None, "rate": None, "value": None}
+if prev_month:
+    cur = month_stats(cur_month)
+    prev = month_stats(prev_month)
+    deltas = {
+        "orders": cur["orders"] - prev["orders"],
+        "returns": cur["returns"] - prev["returns"],
+        "rate": round(cur["rate"] - prev["rate"], 2),
+        "value": cur["value"] - prev["value"],
+    }
+    st.caption(f"เทียบ MoM: {cur_month} vs {prev_month}")
+
 col1, col2, col3, col4 = st.columns(4)
-col1.metric("ออเดอร์ทั้งหมด", f"{total_orders:,}")
-col2.metric("ตีกลับ", f"{total_returns:,}")
-col3.metric("% ตีกลับ", f"{return_rate:.2f}%")
-col4.metric("มูลค่าสินค้าตีกลับ (ลบ.)", f"{returned_value / 1_000_000:,.2f}")
+col1.metric("ออเดอร์ทั้งหมด", f"{total_orders:,}", None if deltas["orders"] is None else f"{deltas['orders']:+,}")
+col2.metric(
+    "ตีกลับ", f"{total_returns:,}",
+    None if deltas["returns"] is None else f"{deltas['returns']:+,}",
+    delta_color="inverse",
+)
+col3.metric(
+    "% ตีกลับ", f"{return_rate:.2f}%",
+    None if deltas["rate"] is None else f"{deltas['rate']:+.2f} จุด",
+    delta_color="inverse",
+)
+col4.metric(
+    "มูลค่าสินค้าตีกลับ (ลบ.)", f"{returned_value / 1_000_000:,.2f}",
+    None if deltas["value"] is None else f"{deltas['value'] / 1_000_000:+,.2f}",
+    delta_color="inverse",
+)
 
 st.divider()
 
-# --- แนวโน้มรายเดือน ---
-monthly = (
-    filtered.groupby("month")
-    .agg(orders=("month", "size"), returns=("is_returned", "sum"))
-    .reset_index()
-    .sort_values("month")
+tab_overview, tab_channel, tab_geo, tab_table, tab_raw = st.tabs(
+    ["ภาพรวม", "ช่องทาง & ขนส่ง", "พื้นที่ & พนักงานขาย", "ตารางสรุป", "ข้อมูลดิบ"]
 )
-monthly["rate"] = (monthly["returns"] / monthly["orders"] * 100).round(2)
 
-fig_trend = go.Figure()
-fig_trend.add_bar(x=monthly["month"], y=monthly["orders"], name="ออเดอร์ทั้งหมด", marker_color=LIGHT_PINK)
-fig_trend.add_bar(x=monthly["month"], y=monthly["returns"], name="ตีกลับ", marker_color=PRIMARY)
-fig_trend.add_trace(
-    go.Scatter(
-        x=monthly["month"], y=monthly["rate"], name="% ตีกลับ",
-        mode="lines+markers", yaxis="y2", line=dict(color=DARK, width=3),
+monthly = rate_table(filtered, "month").sort_values("month")
+
+with tab_overview:
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        fig = px.bar(monthly, x="month", y="orders", color_discrete_sequence=[SECONDARY])
+        st.plotly_chart(chart_layout(fig, "ออเดอร์ทั้งหมด รายเดือน", "จำนวนออเดอร์"), use_container_width=True)
+    with c2:
+        fig = px.bar(monthly, x="month", y="returns", color_discrete_sequence=[PRIMARY])
+        st.plotly_chart(chart_layout(fig, "ตีกลับ รายเดือน", "จำนวนตีกลับ"), use_container_width=True)
+    with c3:
+        fig = px.line(monthly, x="month", y="rate", markers=True, text="rate", color_discrete_sequence=[PRIMARY])
+        fig.update_traces(texttemplate="%{text}%", textposition="top center")
+        st.plotly_chart(chart_layout(fig, "% ตีกลับ รายเดือน", "% ตีกลับ"), use_container_width=True)
+
+    top_products = (
+        filtered[filtered["is_returned"]]
+        .groupby("product_name")
+        .size()
+        .sort_values(ascending=False)
+        .head(10)
+        .reset_index(name="returns")
+        .sort_values("returns")
     )
-)
-fig_trend.update_layout(
-    title="แนวโน้มออเดอร์ vs ตีกลับ รายเดือน",
-    barmode="group",
-    yaxis=dict(title="จำนวนออเดอร์"),
-    yaxis2=dict(title="% ตีกลับ", overlaying="y", side="right", rangemode="tozero"),
-    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-    plot_bgcolor=CARD_BG, paper_bgcolor=CARD_BG,
-)
-st.plotly_chart(fig_trend, use_container_width=True)
-
-col_a, col_b = st.columns(2)
-
-with col_a:
-    by_channel = (
-        filtered.groupby("sales_channel")
-        .agg(orders=("sales_channel", "size"), returns=("is_returned", "sum"))
-        .reset_index()
+    fig_products = px.bar(
+        top_products, x="returns", y="product_name", orientation="h",
+        color_discrete_sequence=[PRIMARY],
     )
-    by_channel["rate"] = (by_channel["returns"] / by_channel["orders"] * 100).round(2)
-    by_channel = by_channel.sort_values("rate", ascending=False)
-    fig_channel = px.bar(
-        by_channel, x="sales_channel", y="rate", text="rate",
-        title="% ตีกลับ ตามช่องทางขาย", color_discrete_sequence=[PRIMARY],
+    st.plotly_chart(
+        chart_layout(fig_products, "สินค้าที่ถูกตีกลับมากที่สุด (Top 10)", "จำนวนครั้งที่ตีกลับ"),
+        use_container_width=True,
     )
-    fig_channel.update_traces(texttemplate="%{text}%", textposition="outside")
-    fig_channel.update_layout(yaxis_title="% ตีกลับ", xaxis_title="", plot_bgcolor=CARD_BG, paper_bgcolor=CARD_BG)
-    st.plotly_chart(fig_channel, use_container_width=True)
 
-with col_b:
-    by_transport = (
-        filtered.groupby("transport_company_group")
-        .agg(orders=("transport_company_group", "size"), returns=("is_returned", "sum"))
-        .reset_index()
-    )
-    by_transport["rate"] = (by_transport["returns"] / by_transport["orders"] * 100).round(2)
-    by_transport = by_transport.sort_values("rate", ascending=False).head(10)
-    fig_transport = px.bar(
-        by_transport, x="transport_company_group", y="rate", text="rate",
-        title="% ตีกลับ ตามบริษัทขนส่ง (Top 10)", color_discrete_sequence=[DARK],
-    )
-    fig_transport.update_traces(texttemplate="%{text}%", textposition="outside")
-    fig_transport.update_layout(yaxis_title="% ตีกลับ", xaxis_title="", plot_bgcolor=CARD_BG, paper_bgcolor=CARD_BG)
-    st.plotly_chart(fig_transport, use_container_width=True)
+with tab_channel:
+    col_a, col_b = st.columns(2)
+    with col_a:
+        by_channel = rate_table(filtered, "sales_channel").sort_values("rate", ascending=False)
+        fig = px.bar(by_channel, x="sales_channel", y="rate", text="rate", color_discrete_sequence=[PRIMARY])
+        fig.update_traces(texttemplate="%{text}%", textposition="outside")
+        st.plotly_chart(chart_layout(fig, "% ตีกลับ ตามช่องทางขาย", "% ตีกลับ"), use_container_width=True)
+    with col_b:
+        by_transport = (
+            rate_table(filtered, "transport_company_group").sort_values("rate", ascending=False).head(10)
+        )
+        fig = px.bar(by_transport, x="transport_company_group", y="rate", text="rate", color_discrete_sequence=[SECONDARY])
+        fig.update_traces(texttemplate="%{text}%", textposition="outside")
+        st.plotly_chart(
+            chart_layout(fig, "% ตีกลับ ตามบริษัทขนส่ง (Top 10)", "% ตีกลับ"), use_container_width=True
+        )
 
-# --- สินค้าตีกลับสูงสุด ---
-top_products = (
-    filtered[filtered["is_returned"]]
-    .groupby("product_name")
-    .size()
-    .sort_values(ascending=False)
-    .head(10)
-    .reset_index(name="returns")
-)
-fig_products = px.bar(
-    top_products.sort_values("returns"), x="returns", y="product_name", orientation="h",
-    title="สินค้าที่ถูกตีกลับมากที่สุด (Top 10)", color_discrete_sequence=[PRIMARY],
-)
-fig_products.update_layout(yaxis_title="", xaxis_title="จำนวนครั้งที่ตีกลับ", plot_bgcolor=CARD_BG, paper_bgcolor=CARD_BG)
-st.plotly_chart(fig_products, use_container_width=True)
+with tab_geo:
+    st.caption(f"แสดงเฉพาะกลุ่มที่มีออเดอร์ >= {MIN_ORDERS_FOR_RATE} รายการ ในช่วงที่กรองไว้ เพื่อลด noise จากฐานเล็กเกินไป")
+    col_a, col_b = st.columns(2)
+    with col_a:
+        by_province = (
+            rate_table(filtered, "province", MIN_ORDERS_FOR_RATE).sort_values("rate", ascending=False).head(10)
+        )
+        fig = px.bar(
+            by_province.sort_values("rate"), x="rate", y="province", orientation="h", text="rate",
+            color_discrete_sequence=[PRIMARY],
+        )
+        fig.update_traces(texttemplate="%{text}%", textposition="outside")
+        st.plotly_chart(chart_layout(fig, "% ตีกลับ ตามจังหวัด (Top 10)", "% ตีกลับ"), use_container_width=True)
+    with col_b:
+        by_sales = (
+            rate_table(filtered, "salesperson", MIN_ORDERS_FOR_RATE).sort_values("rate", ascending=False).head(10)
+        )
+        fig = px.bar(
+            by_sales.sort_values("rate"), x="rate", y="salesperson", orientation="h", text="rate",
+            color_discrete_sequence=[SECONDARY],
+        )
+        fig.update_traces(texttemplate="%{text}%", textposition="outside")
+        st.plotly_chart(
+            chart_layout(fig, "% ตีกลับ ตามพนักงานขาย (Top 10)", "% ตีกลับ"), use_container_width=True
+        )
 
-with st.expander("ดูข้อมูลดิบ (หลังกรอง)"):
+with tab_table:
+    st.markdown("#### สรุปตามร้านค้า")
+    shop_summary = rate_table(filtered, "shop").sort_values("orders", ascending=False)
+    shop_summary.columns = ["ร้านค้า", "ออเดอร์", "ตีกลับ", "% ตีกลับ"]
+    st.dataframe(shop_summary, use_container_width=True, hide_index=True)
+
+    st.markdown("#### สรุปตามวิธีการชำระเงิน")
+    pay_summary = rate_table(filtered, "payment_method").sort_values("orders", ascending=False)
+    pay_summary.columns = ["วิธีการชำระเงิน", "ออเดอร์", "ตีกลับ", "% ตีกลับ"]
+    st.dataframe(pay_summary, use_container_width=True, hide_index=True)
+
+    st.markdown("#### สรุปตามเดือน x ช่องทางขาย (% ตีกลับ)")
+    pivot = filtered.pivot_table(
+        index="month", columns="sales_channel", values="is_returned", aggfunc="mean"
+    ).mul(100).round(2)
+    st.dataframe(pivot, use_container_width=True)
+
+with tab_raw:
     st.dataframe(filtered, use_container_width=True)
     st.download_button(
         "ดาวน์โหลด CSV (หลังกรอง)",
