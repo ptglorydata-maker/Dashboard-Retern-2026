@@ -9,8 +9,8 @@ that file exists (local dev). Otherwise — e.g. on Streamlit Community
 Cloud, where there's no local file — it pulls straight from Google Sheets
 using the same pipeline code, authenticated via st.secrets (see
 pipeline/auth.py and README's deployment section).
-Dark theme lives in .streamlit/config.toml (native widget theming) plus
-the CSS block below (custom KPI cards, chart chrome).
+Light "colorful modern SaaS" theme lives in .streamlit/config.toml (native
+widget theming) plus the CSS block below (custom KPI cards, chart chrome).
 """
 
 import os
@@ -27,24 +27,36 @@ from auth import get_gspread_client  # noqa: E402
 from combine_returns import build_combined_dataframe  # noqa: E402
 from config import DUCKDB_PATH, DUCKDB_TABLE  # noqa: E402
 
-# --- ธีมมืด เน้นชมพู CI — validated with dataviz/scripts/validate_palette.js ---
-# ปรับความสว่างของชมพูแบรนด์ (#D34B82) ให้สดขึ้นสำหรับพื้นหลังมืด (แนวทาง "dark mode
-# คือคนละสเต็ปของเรมป์เดียวกัน" ไม่ใช่กลับสีอัตโนมัติ) แล้ว contrast-check กับพื้นมืดใหม่
-APP_BG = "#241B26"
-CARD_BG = "#2F2531"
-CARD_BORDER = "#4E3E4B"
-TEXT = "#F5EDF0"
-TEXT_MUTED = "#C6B7C2"
-PRIMARY = "#FF6FA5"       # ชมพูสดหลัก — ตัวเด่น/บวก
-NEUTRAL = "#B9A7B0"       # เทาอมชมพู — บริบท/ปริมาณ (แทนน้ำตาล CI เดิมบนพื้นมืด)
-NEGATIVE = "#F4407E"      # ชมพูเข้ม/แดง — ใช้เฉพาะตอนหมายถึง "แย่ลง" (ตีกลับเพิ่ม)
-GRID = "#413240"
-# แรมป์ชมพูโทนเดียว (light -> dark) สำหรับโดนัท/หลายหมวดหมู่ — ใส่ direct label กำกับ
-# เสมอ เพราะ hue เดียวกันแยก identity ด้วยสีอย่างเดียวไม่ได้ (ตามคำขอ "ใช้สี CI ชมพูเป็นหลัก")
-PINK_RAMP = ["#FFD1E3", "#FF9EC4", "#FF6FA5", "#E23F76", "#B23A67", "#7A2648"]
+# --- Colorful modern SaaS, light — validated with dataviz/scripts/validate_palette.js ---
+# Base categorical hues are the dataviz skill's documented default palette
+# (references/palette.md), which ships pre-validated for the CVD/contrast
+# checks. PT Glory's brand pink is layered in as the one recurring "this is
+# the return-rate story" accent (validated as a pair against blue below),
+# not mixed into the general categorical rotation.
+APP_BG = "#F5F6FA"
+CARD_BG = "#FFFFFF"
+CARD_BORDER = "#E7E9F0"
+TEXT = "#161B22"
+TEXT_MUTED = "#6B7280"
+PRIMARY = "#D34B82"       # ชมพูแบรนด์ PT Glory — ใช้ซ้ำเฉพาะเรื่อง "ตีกลับ" ให้เป็นเส้นเรื่องเดียว
+POSITIVE = "#1BAF7A"
+NEGATIVE = "#E34948"
+GRID = "#EEF0F5"
 
-BADGE_COLORS = [PRIMARY, NEGATIVE, "#E37AA0", "#B23A67"]
+# บัตร KPI ทั้ง 4 ใบ: validated all-pairs (คนกวาดตาเห็นพร้อมกันทั้งแถว)
+BADGE_COLORS = ["#2A78D6", "#EB6834", "#1BAF7A", "#4A3AA7"]
 KPI_ICONS = ["📦", "↩️", "📉", "💸"]
+# กราฟ bar เดี่ยว (นับเป็น 1 series ต่อกราฟ ไม่ต้องกัน CVD ระหว่างกราฟ) — ไล่สีให้แต่ละ
+# มุมมองมีโทนของตัวเอง ส่วน "% ตีกลับ" ที่เป็นพระเอกของแดชบอร์ดนี้คงสีชมพูแบรนด์ไว้เสมอ
+CHART_CHANNEL = PRIMARY
+CHART_TRANSPORT = "#2A78D6"
+CHART_PROVINCE = "#1BAF7A"
+CHART_SALESPERSON = "#4A3AA7"
+CHART_PRODUCTS = "#EB6834"
+# โดนัท (วงกลม = ทุกชิ้นอยู่ติดกันหมด) จำกัด 3 สีตามที่ palette.md ระบุว่า all-pairs
+# ผ่านเกณฑ์แค่ 3 สีแรก ส่วนที่เหลือพับเป็น "อื่นๆ" สีเทากลาง
+DONUT_TOP3 = ["#2A78D6", "#EB6834", "#1BAF7A"]
+DONUT_OTHER = "#9CA3AF"
 
 LOGO_PATH = os.path.join(os.path.dirname(__file__), "..", "assets", "logo-01.png")
 MIN_ORDERS_FOR_RATE = 30  # ตัดจังหวัด/พนักงานขายที่ออเดอร์น้อยเกินไป (% ตีกลับ ผันผวนไม่มีนัยสำคัญ)
@@ -101,12 +113,12 @@ st.markdown(
     /* --- navbar บนสุด --- */
     .topbar {{
         display: flex; align-items: center; justify-content: space-between;
-        background: linear-gradient(135deg, {CARD_BG} 0%, #3A2C3C 100%);
+        background: {CARD_BG};
         border: 1px solid {CARD_BORDER};
         border-radius: 16px;
         padding: 14px 22px;
         margin-bottom: 18px;
-        box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+        box-shadow: 0 2px 14px rgba(22,27,34,0.06);
     }}
     .topbar-title {{ display: flex; align-items: center; gap: 12px; }}
     .topbar-title .emoji {{ font-size: 1.6rem; }}
@@ -114,46 +126,46 @@ st.markdown(
     .topbar-title .sub {{ color: {TEXT_MUTED}; font-size: 0.78rem; margin-top: 2px; }}
     .topbar-pill {{
         display: flex; align-items: center; gap: 6px;
-        background: rgba(255,111,165,0.12);
-        border: 1px solid rgba(255,111,165,0.35);
+        background: rgba(211,75,130,0.08);
+        border: 1px solid rgba(211,75,130,0.25);
         color: {PRIMARY}; font-size: 0.78rem; font-weight: 500;
         padding: 6px 14px; border-radius: 999px;
     }}
     .topbar-pill .dot {{
-        width: 7px; height: 7px; border-radius: 50%; background: #3DD68C;
-        box-shadow: 0 0 6px #3DD68C;
+        width: 7px; height: 7px; border-radius: 50%; background: {POSITIVE};
+        box-shadow: 0 0 6px {POSITIVE};
     }}
 
-    /* --- การ์ด KPI: เงา/glow ตามสีไอคอนของการ์ดนั้น + ทำให้กะทัดรัดขึ้น --- */
+    /* --- การ์ด KPI: สีต่างกันต่อใบตาม badge, เงานุ่มแบบ SaaS --- */
     .kpi-card {{
-        background: linear-gradient(160deg, {CARD_BG} 0%, #382C38 100%);
+        background: {CARD_BG};
         border: 1px solid {CARD_BORDER};
         border-radius: 14px;
         padding: 14px 16px 6px 16px;
-        box-shadow: 0 6px 20px rgba(0,0,0,0.22);
+        box-shadow: 0 4px 16px rgba(22,27,34,0.06);
         transition: box-shadow 0.15s ease;
     }}
     .kpi-top {{ display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }}
     .kpi-icon {{
-        width: 32px; height: 32px; border-radius: 50%;
+        width: 34px; height: 34px; border-radius: 10px;
         display: flex; align-items: center; justify-content: center;
-        font-size: 15px;
+        font-size: 16px;
     }}
     .kpi-label {{ color: {TEXT_MUTED}; font-size: 0.8rem; }}
-    .kpi-value {{ color: {TEXT}; font-size: 1.45rem; font-weight: 700; line-height: 1.15; }}
+    .kpi-value {{ color: {TEXT}; font-size: 1.5rem; font-weight: 700; line-height: 1.15; }}
     .kpi-delta {{ font-size: 0.78rem; margin-top: 1px; }}
-    .kpi-delta.up {{ color: #3DD68C; }}
+    .kpi-delta.up {{ color: {POSITIVE}; }}
     .kpi-delta.down {{ color: {NEGATIVE}; }}
     .kpi-sub {{ color: {TEXT_MUTED}; font-size: 0.7rem; margin-bottom: 4px; }}
     .kpi-spark {{ margin: 4px -2px -2px -2px; }}
 
-    /* --- ห่อกราฟ Plotly ให้เป็นการ์ดมีเงา/ขอบ เหมือนการ์ด KPI --- */
+    /* --- ห่อกราฟ Plotly ให้เป็นการ์ดสไตล์เดียวกับ KPI --- */
     [data-testid="stPlotlyChart"] {{
-        background: linear-gradient(160deg, {CARD_BG} 0%, #322732 100%);
+        background: {CARD_BG};
         border: 1px solid {CARD_BORDER};
         border-radius: 14px;
         padding: 6px 10px 2px 10px;
-        box-shadow: 0 6px 20px rgba(0,0,0,0.22);
+        box-shadow: 0 4px 16px rgba(22,27,34,0.06);
     }}
     </style>
     """,
@@ -176,7 +188,7 @@ def sparkline_svg(values: list[float], color: str, width: int = 220, height: int
     area = f"0,{height} {points} {width},{height}"
     return f"""
     <svg width="100%" height="{height}" viewBox="0 0 {width} {height}" preserveAspectRatio="none">
-        <polygon points="{area}" fill="{color}" opacity="0.15"></polygon>
+        <polygon points="{area}" fill="{color}" opacity="0.12"></polygon>
         <polyline points="{points}" fill="none" stroke="{color}" stroke-width="2.5"
                    stroke-linecap="round" stroke-linejoin="round"></polyline>
     </svg>
@@ -191,9 +203,9 @@ def kpi_card(label: str, value: str, delta: float | None, delta_fmt: str, icon: 
         arrow = "▲" if delta >= 0 else "▼"
         delta_html = f'<div class="kpi-delta {cls}">{arrow} {delta_fmt}</div>'
     return f"""
-    <div class="kpi-card" style="border-top: 3px solid {badge}; box-shadow: 0 6px 20px rgba(0,0,0,0.22), 0 0 16px {badge}22;">
+    <div class="kpi-card" style="border-top: 3px solid {badge};">
         <div class="kpi-top">
-            <span class="kpi-icon" style="background:{badge}26; color:{badge}; box-shadow: 0 0 10px {badge}40;">{icon}</span>
+            <span class="kpi-icon" style="background:{badge}1A; color:{badge};">{icon}</span>
             <span class="kpi-label">{label}</span>
         </div>
         <div class="kpi-value">{value}</div>
@@ -400,20 +412,20 @@ tab_overview, tab_channel, tab_geo, tab_table, tab_raw = st.tabs(
 )
 
 with tab_overview:
-    # --- กราฟหลัก: ออเดอร์ (พื้นที่ gradient) + ตีกลับ (เส้น) หน่วยเดียวกัน (จำนวนออเดอร์) แกนเดียว ---
+    # --- กราฟหลัก: ออเดอร์ (พื้นที่) + ตีกลับ (เส้นชมพูแบรนด์) หน่วยเดียวกัน แกนเดียว ---
     fig_hero = go.Figure()
     fig_hero.add_trace(
         go.Scatter(
             x=monthly["month_label"], y=monthly["orders"], name="ออเดอร์ทั้งหมด",
-            mode="lines", line=dict(color=NEUTRAL, width=2),
-            fill="tozeroy", fillcolor="rgba(185,167,176,0.12)",
+            mode="lines", line=dict(color=BADGE_COLORS[0], width=2),
+            fill="tozeroy", fillcolor="rgba(42,120,214,0.08)",
         )
     )
     fig_hero.add_trace(
         go.Scatter(
             x=monthly["month_label"], y=monthly["returns"], name="ตีกลับ",
             mode="lines+markers", line=dict(color=PRIMARY, width=3),
-            fill="tozeroy", fillcolor="rgba(255,111,165,0.18)",
+            fill="tozeroy", fillcolor="rgba(211,75,130,0.14)",
             marker=dict(size=6),
         )
     )
@@ -426,9 +438,21 @@ with tab_overview:
     with col_donut:
         by_channel_orders = filtered.groupby("sales_channel").size().reset_index(name="orders")
         by_channel_orders = by_channel_orders.sort_values("orders", ascending=False)
+        # โดนัทวงกลม = ทุกชิ้นอยู่ติดกันหมด (all-pairs) — ใช้ได้แค่ 3 สีตาม palette.md แล้วพับ
+        # หมวดที่เหลือเป็น "อื่นๆ" สีเทากลาง กันสีชนกันตอนมีมากกว่า 3 ช่องทาง
+        top3 = by_channel_orders.head(3).copy()
+        rest = by_channel_orders.iloc[3:]
+        if not rest.empty:
+            top3 = pd.concat(
+                [top3, pd.DataFrame([{"sales_channel": "อื่นๆ", "orders": rest["orders"].sum()}])],
+                ignore_index=True,
+            )
+        donut_colors = DONUT_TOP3[: len(top3) - (1 if not rest.empty else 0)] + (
+            [DONUT_OTHER] if not rest.empty else []
+        )
         fig_donut = px.pie(
-            by_channel_orders, names="sales_channel", values="orders", hole=0.62,
-            color_discrete_sequence=PINK_RAMP,
+            top3, names="sales_channel", values="orders", hole=0.62,
+            color_discrete_sequence=donut_colors,
         )
         fig_donut.update_traces(textinfo="label+percent", textfont_color=TEXT)
         fig_donut.update_layout(
@@ -451,7 +475,7 @@ with tab_overview:
         )
         fig_products = px.bar(
             top_products, x="returns", y="product_name", orientation="h",
-            color_discrete_sequence=[PRIMARY],
+            color_discrete_sequence=[CHART_PRODUCTS],
         )
         st.plotly_chart(
             chart_layout(fig_products, "สินค้าที่ถูกตีกลับมากที่สุด (Top 8)", "จำนวนครั้งที่ตีกลับ"),
@@ -462,14 +486,17 @@ with tab_channel:
     col_a, col_b = st.columns(2)
     with col_a:
         by_channel = rate_table(filtered, "sales_channel").sort_values("rate", ascending=False)
-        fig = px.bar(by_channel, x="sales_channel", y="rate", text="rate", color_discrete_sequence=[PRIMARY])
+        fig = px.bar(by_channel, x="sales_channel", y="rate", text="rate", color_discrete_sequence=[CHART_CHANNEL])
         fig.update_traces(texttemplate="%{text}%", textposition="outside")
         st.plotly_chart(chart_layout(fig, "% ตีกลับ ตามช่องทางขาย", "% ตีกลับ"), use_container_width=True)
     with col_b:
         by_transport = (
             rate_table(filtered, "transport_company_group").sort_values("rate", ascending=False).head(10)
         )
-        fig = px.bar(by_transport, x="transport_company_group", y="rate", text="rate", color_discrete_sequence=[NEUTRAL])
+        fig = px.bar(
+            by_transport, x="transport_company_group", y="rate", text="rate",
+            color_discrete_sequence=[CHART_TRANSPORT],
+        )
         fig.update_traces(texttemplate="%{text}%", textposition="outside")
         st.plotly_chart(
             chart_layout(fig, "% ตีกลับ ตามบริษัทขนส่ง (Top 10)", "% ตีกลับ"), use_container_width=True
@@ -484,7 +511,7 @@ with tab_geo:
         )
         fig = px.bar(
             by_province.sort_values("rate"), x="rate", y="province", orientation="h", text="rate",
-            color_discrete_sequence=[PRIMARY],
+            color_discrete_sequence=[CHART_PROVINCE],
         )
         fig.update_traces(texttemplate="%{text}%", textposition="outside")
         st.plotly_chart(chart_layout(fig, "% ตีกลับ ตามจังหวัด (Top 10)", "% ตีกลับ"), use_container_width=True)
@@ -494,7 +521,7 @@ with tab_geo:
         )
         fig = px.bar(
             by_sales.sort_values("rate"), x="rate", y="salesperson", orientation="h", text="rate",
-            color_discrete_sequence=[NEUTRAL],
+            color_discrete_sequence=[CHART_SALESPERSON],
         )
         fig.update_traces(texttemplate="%{text}%", textposition="outside")
         st.plotly_chart(
