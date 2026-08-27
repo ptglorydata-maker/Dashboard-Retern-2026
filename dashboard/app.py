@@ -200,7 +200,10 @@ def inject_css():
         font-size: 2.5rem; font-weight: 700; margin-top: 8px; line-height: 1.05;
         letter-spacing: -0.01em; font-variant-numeric: tabular-nums;
         text-shadow: 0 2px 10px rgba(0,0,0,0.12);
+        white-space: nowrap; overflow: hidden;
     }}
+    .kpi-card .kpi-value.kpi-value-long {{ font-size: 1.7rem; }}
+    .kpi-card .kpi-value.kpi-value-xlong {{ font-size: 1.35rem; }}
     .kpi-card .kpi-delta {{
         display: inline-flex; align-items: center; gap: 5px;
         font-size: 0.76rem; font-weight: 500; margin-top: 12px;
@@ -258,10 +261,14 @@ def delta_html(delta_pct: float | None, bad_when_up: bool = True, note: str = "à
 
 
 def kpi_card(label: str, value: str, sub_html: str, css_class: str):
+    # Long values (millions-range à¸¿ amounts, etc.) need a smaller font to stay
+    # on one line instead of wrapping inside the fixed-height card.
+    length = len(value)
+    size_class = "kpi-value-xlong" if length > 11 else "kpi-value-long" if length > 7 else ""
     st.markdown(f"""
     <div class="kpi-card {css_class}">
         <div class="kpi-label">{label}</div>
-        <div class="kpi-value">{value}</div>
+        <div class="kpi-value {size_class}">{value}</div>
         {sub_html}
     </div>
     """, unsafe_allow_html=True)
