@@ -188,32 +188,72 @@ def inject_css():
 
     /* KPI gradient cards */
     .kpi-card {{
-        border-radius: 18px; padding: 22px 24px; color: white;
-        box-shadow: 0 10px 25px -8px rgba(0,0,0,0.25);
-        min-height: 140px; position: relative; overflow:hidden;
+        border-radius: 20px; padding: 22px 24px; color: white;
+        height: 168px; position: relative; overflow: hidden;
+        display: flex; flex-direction: column; justify-content: space-between;
+        border: 1px solid rgba(255,255,255,0.25);
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
     }}
+    .kpi-card:hover {{ transform: translateY(-3px); }}
+    .kpi-card::before {{
+        content: ""; position: absolute; top: -35px; right: -35px;
+        width: 120px; height: 120px; border-radius: 50%;
+        background: rgba(255,255,255,0.14); pointer-events: none;
+    }}
+    .kpi-card::after {{
+        content: ""; position: absolute; bottom: -50px; left: -20px;
+        width: 100px; height: 100px; border-radius: 50%;
+        background: rgba(255,255,255,0.08); pointer-events: none;
+    }}
+    .kpi-card .kpi-top {{ display: flex; align-items: flex-start; justify-content: space-between; }}
     .kpi-card .kpi-label {{
-        font-size: 0.76rem; font-weight: 500; opacity: 0.88;
+        font-size: 0.76rem; font-weight: 500; opacity: 0.9;
         text-transform: uppercase; letter-spacing: 0.04em;
+        position: relative; z-index: 1;
+    }}
+    .kpi-card .kpi-icon {{
+        width: 34px; height: 34px; border-radius: 11px; flex-shrink: 0;
+        background: rgba(255,255,255,0.22); backdrop-filter: blur(2px);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.05rem; position: relative; z-index: 1;
     }}
     .kpi-card .kpi-value {{
-        font-size: 2.5rem; font-weight: 700; margin-top: 8px; line-height: 1.05;
+        font-size: 2.35rem; font-weight: 700; line-height: 1.05;
         letter-spacing: -0.01em; font-variant-numeric: tabular-nums;
-        text-shadow: 0 2px 10px rgba(0,0,0,0.12);
+        text-shadow: 0 2px 10px rgba(0,0,0,0.15);
         white-space: nowrap; overflow: hidden;
+        position: relative; z-index: 1;
     }}
-    .kpi-card .kpi-value.kpi-value-long {{ font-size: 1.7rem; }}
-    .kpi-card .kpi-value.kpi-value-xlong {{ font-size: 1.35rem; }}
+    .kpi-card .kpi-value.kpi-value-long {{ font-size: 1.65rem; }}
+    .kpi-card .kpi-value.kpi-value-xlong {{ font-size: 1.3rem; }}
     .kpi-card .kpi-delta {{
-        display: inline-flex; align-items: center; gap: 5px;
-        font-size: 0.76rem; font-weight: 500; margin-top: 12px;
-        background: rgba(255,255,255,0.16); padding: 4px 10px; border-radius: 999px;
+        display: inline-flex; align-items: center; gap: 5px; align-self: flex-start;
+        font-size: 0.76rem; font-weight: 500;
+        background: rgba(255,255,255,0.18); padding: 4px 10px; border-radius: 999px;
+        position: relative; z-index: 1; white-space: nowrap;
+        max-width: 100%; overflow: hidden; text-overflow: ellipsis;
     }}
     .kpi-card .delta-arrow {{ font-weight: 700; }}
-    .kpi-pink   {{ background: linear-gradient(135deg, {COLORS['pink']}, {COLORS['pink_dark']}); }}
-    .kpi-purple {{ background: linear-gradient(135deg, {COLORS['purple']}, {COLORS['purple_dark']}); }}
-    .kpi-blue   {{ background: linear-gradient(135deg, {COLORS['blue']}, {COLORS['blue_dark']}); }}
-    .kpi-orange {{ background: linear-gradient(135deg, {COLORS['orange']}, {COLORS['orange_dark']}); }}
+    .kpi-pink {{
+        background: linear-gradient(135deg, {COLORS['pink']}, {COLORS['pink_dark']});
+        box-shadow: 0 14px 28px -10px rgba(219,39,119,0.55);
+    }}
+    .kpi-purple {{
+        background: linear-gradient(135deg, {COLORS['purple']}, {COLORS['purple_dark']});
+        box-shadow: 0 14px 28px -10px rgba(124,58,237,0.55);
+    }}
+    .kpi-blue {{
+        background: linear-gradient(135deg, {COLORS['blue']}, {COLORS['blue_dark']});
+        box-shadow: 0 14px 28px -10px rgba(37,99,235,0.55);
+    }}
+    .kpi-orange {{
+        background: linear-gradient(135deg, {COLORS['orange']}, {COLORS['orange_dark']});
+        box-shadow: 0 14px 28px -10px rgba(234,88,12,0.55);
+    }}
+    .kpi-pink:hover   {{ box-shadow: 0 18px 34px -8px rgba(219,39,119,0.65); }}
+    .kpi-purple:hover {{ box-shadow: 0 18px 34px -8px rgba(124,58,237,0.65); }}
+    .kpi-blue:hover   {{ box-shadow: 0 18px 34px -8px rgba(37,99,235,0.65); }}
+    .kpi-orange:hover {{ box-shadow: 0 18px 34px -8px rgba(234,88,12,0.65); }}
 
     /* Panel cards */
     .panel {{
@@ -260,14 +300,17 @@ def delta_html(delta_pct: float | None, bad_when_up: bool = True, note: str = "�
     )
 
 
-def kpi_card(label: str, value: str, sub_html: str, css_class: str):
+def kpi_card(label: str, value: str, sub_html: str, css_class: str, icon: str = "📊"):
     # Long values (millions-range ฿ amounts, etc.) need a smaller font to stay
     # on one line instead of wrapping inside the fixed-height card.
     length = len(value)
     size_class = "kpi-value-xlong" if length > 11 else "kpi-value-long" if length > 7 else ""
     st.markdown(f"""
     <div class="kpi-card {css_class}">
-        <div class="kpi-label">{label}</div>
+        <div class="kpi-top">
+            <div class="kpi-label">{label}</div>
+            <div class="kpi-icon">{icon}</div>
+        </div>
         <div class="kpi-value {size_class}">{value}</div>
         {sub_html}
     </div>
@@ -398,22 +441,22 @@ def main():
     with c1:
         kpi_card(
             f"ยอดตีกลับ · {cur_month_label}", f"{cur_count:,}",
-            delta_html(count_delta_pct, bad_when_up=True), "kpi-pink",
+            delta_html(count_delta_pct, bad_when_up=True), "kpi-pink", icon="📦",
         )
     with c2:
         kpi_card(
             f"มูลค่าตีกลับ · {cur_month_label}", f"฿{cur_value:,.0f}",
-            delta_html(value_delta_pct, bad_when_up=True), "kpi-purple",
+            delta_html(value_delta_pct, bad_when_up=True), "kpi-purple", icon="💰",
         )
     with c3:
         kpi_card(
             "เฉลี่ยต่อเดือน", f"{avg_per_month:,.0f}",
-            f'<span class="kpi-delta">รายการ/เดือน จาก {n_months} เดือนที่เลือก</span>', "kpi-blue",
+            f'<span class="kpi-delta">รายการ/เดือน จาก {n_months} เดือนที่เลือก</span>', "kpi-blue", icon="📊",
         )
     with c4:
         kpi_card(
             "ช่องทางตีกลับสูงสุด", top_channel,
-            f'<span class="kpi-delta">{top_channel_share:.0f}% ของยอดตีกลับทั้งหมด</span>', "kpi-orange",
+            f'<span class="kpi-delta">{top_channel_share:.0f}% ของยอดตีกลับทั้งหมด</span>', "kpi-orange", icon="🎯",
         )
 
     st.write("")
