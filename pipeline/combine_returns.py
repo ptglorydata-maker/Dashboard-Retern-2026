@@ -12,6 +12,7 @@ is turned on — loads the same data into BigQuery.
 
 import os
 import sys
+import time
 
 import gspread
 import pandas as pd
@@ -38,9 +39,21 @@ def _dedupe_headers(headers: list[str]) -> list[str]:
     return out
 
 
-def read_sheet_raw(gc: gspread.Client, spreadsheet_id: str, gid: int) -> pd.DataFrame:
-    ws = gc.open_by_key(spreadsheet_id).get_worksheet_by_id(gid)
-    values = ws.get_all_values()
+def read_sheet_raw(gc: gspread.Client, spreadsheet_id: str, gid: int, retries: int = 4) -> pd.DataFrame:
+    # Large (70k+ row) sheets occasionally hit transient 5xx / rate-limit errors
+    # from the Sheets API — retry with backoff before giving up.
+    for attempt in range(retries):
+        try:
+            ws = gc.open_by_key(spreadsheet_id).get_worksheet_by_id(gid)
+            values = ws.get_all_values()
+            break
+        except gspread.exceptions.APIError as e:
+            status = e.response.status_code if e.response is not None else None
+            if attempt == retries - 1 or (status is not None and status < 500 and status != 429):
+                raise
+            wait = 5 * (2 ** attempt)
+            print(f"  API error ({status}), retrying in {wait}s ({attempt + 1}/{retries}) ...")
+            time.sleep(wait)
     if not values:
         return pd.DataFrame()
     header, rows = _dedupe_headers(values[0]), values[1:]

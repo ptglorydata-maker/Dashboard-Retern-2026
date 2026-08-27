@@ -61,7 +61,15 @@ st.set_page_config(page_title="Dashboard สินค้าตีกลับ 25
 def load_data() -> tuple[pd.DataFrame, bool]:
     """Returns (dataframe, is_demo)."""
     if os.path.exists(COMBINED_CSV_PATH):
-        df = pd.read_csv(COMBINED_CSV_PATH, parse_dates=["order_time", "ship_date"])
+        df = pd.read_csv(COMBINED_CSV_PATH, low_memory=False)
+        # read_csv's parse_dates can silently no-op depending on the pandas
+        # string-dtype backend in use, so parse explicitly instead of relying on it.
+        for col in ("order_time", "ship_date"):
+            if col in df.columns:
+                df[col] = pd.to_datetime(df[col], errors="coerce")
+        # Schema A months carry every order (returned or not) with an is_returned
+        # flag — this dashboard is about returns only, so filter down to those.
+        df = df[df["is_returned"] == True]  # noqa: E712
         return _apply_channel_labels(df), False
     return _apply_channel_labels(_demo_data()), True
 
