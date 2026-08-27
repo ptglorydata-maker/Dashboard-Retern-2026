@@ -262,19 +262,19 @@ def inject_css():
     }}
     .hero-left {{ display: flex; align-items: center; gap: 14px; }}
     .hero-icon {{
-        width: 52px; height: 52px; border-radius: 16px; flex-shrink: 0;
+        width: 68px; height: 68px; border-radius: 18px; flex-shrink: 0;
         background: linear-gradient(135deg, {COLORS['pink']}, {COLORS['purple']});
         display: flex; align-items: center; justify-content: center;
-        font-size: 1.6rem; box-shadow: 0 10px 22px -8px rgba(157,23,140,0.5);
+        font-size: 2.1rem; box-shadow: 0 10px 22px -8px rgba(157,23,140,0.5);
     }}
     .hero-title {{
-        font-size: 1.7rem; font-weight: 700; line-height: 1.15; margin: 0;
+        font-size: 2.6rem; font-weight: 800; line-height: 1.15; margin: 0;
         background: linear-gradient(135deg, {COLORS['pink_dark']}, {COLORS['purple_dark']});
         -webkit-background-clip: text; background-clip: text; color: transparent;
     }}
     .hero-sub {{
-        display: flex; align-items: center; gap: 6px; margin-top: 4px;
-        font-size: 0.8rem; color: var(--muted);
+        display: flex; align-items: center; gap: 6px; margin-top: 6px;
+        font-size: 0.85rem; color: var(--muted);
     }}
     .status-pill {{
         display: inline-flex; align-items: center; gap: 6px;
