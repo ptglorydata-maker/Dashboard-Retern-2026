@@ -87,9 +87,9 @@ def _demo_data() -> pd.DataFrame:
 def inject_css():
     st.markdown(f"""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&display=swap');
 
-    html, body, [class*="css"] {{ font-family: 'Prompt', sans-serif; }}
+    html, body, [class*="css"] {{ font-family: 'Kanit', sans-serif; }}
 
     :root {{
         --ink: {COLORS['ink']};
@@ -123,13 +123,25 @@ def inject_css():
 
     /* KPI gradient cards */
     .kpi-card {{
-        border-radius: 18px; padding: 20px 22px; color: white;
+        border-radius: 18px; padding: 22px 24px; color: white;
         box-shadow: 0 10px 25px -8px rgba(0,0,0,0.25);
-        min-height: 118px; position: relative; overflow:hidden;
+        min-height: 140px; position: relative; overflow:hidden;
     }}
-    .kpi-card .kpi-label {{ font-size: 0.8rem; opacity: 0.9; }}
-    .kpi-card .kpi-value {{ font-size: 1.6rem; font-weight: 700; margin-top: 6px; }}
-    .kpi-card .kpi-delta {{ font-size: 0.78rem; margin-top: 6px; opacity: 0.92; }}
+    .kpi-card .kpi-label {{
+        font-size: 0.76rem; font-weight: 500; opacity: 0.88;
+        text-transform: uppercase; letter-spacing: 0.04em;
+    }}
+    .kpi-card .kpi-value {{
+        font-size: 2.5rem; font-weight: 700; margin-top: 8px; line-height: 1.05;
+        letter-spacing: -0.01em; font-variant-numeric: tabular-nums;
+        text-shadow: 0 2px 10px rgba(0,0,0,0.12);
+    }}
+    .kpi-card .kpi-delta {{
+        display: inline-flex; align-items: center; gap: 5px;
+        font-size: 0.76rem; font-weight: 500; margin-top: 12px;
+        background: rgba(255,255,255,0.16); padding: 4px 10px; border-radius: 999px;
+    }}
+    .kpi-card .delta-arrow {{ font-weight: 700; }}
     .kpi-pink   {{ background: linear-gradient(135deg, {COLORS['pink']}, {COLORS['pink_dark']}); }}
     .kpi-purple {{ background: linear-gradient(135deg, {COLORS['purple']}, {COLORS['purple_dark']}); }}
     .kpi-blue   {{ background: linear-gradient(135deg, {COLORS['blue']}, {COLORS['blue_dark']}); }}
@@ -165,12 +177,27 @@ def inject_css():
     """, unsafe_allow_html=True)
 
 
-def kpi_card(label: str, value: str, delta: str, css_class: str):
+def delta_html(delta_pct: float | None, bad_when_up: bool = True, note: str = "จากเดือนก่อน") -> str:
+    """Pill showing MoM change, color-coded by whether an increase is good or bad
+    for this metric (returns going up is bad; a drop is good)."""
+    if delta_pct is None:
+        return f'<span class="kpi-delta">ไม่มีข้อมูลเดือนก่อนหน้า</span>'
+    is_up = delta_pct >= 0
+    arrow = "▲" if is_up else "▼"
+    is_bad = is_up if bad_when_up else not is_up
+    arrow_color = "#ffd2d2" if is_bad else "#c9ffe0"
+    return (
+        f'<span class="kpi-delta"><span class="delta-arrow" style="color:{arrow_color}">'
+        f'{arrow} {abs(delta_pct):.1f}%</span> {note}</span>'
+    )
+
+
+def kpi_card(label: str, value: str, sub_html: str, css_class: str):
     st.markdown(f"""
     <div class="kpi-card {css_class}">
         <div class="kpi-label">{label}</div>
         <div class="kpi-value">{value}</div>
-        <div class="kpi-delta">{delta}</div>
+        {sub_html}
     </div>
     """, unsafe_allow_html=True)
 
@@ -267,17 +294,53 @@ def main():
     total_value = df["product_price"].fillna(0).sum() if "product_price" in df else 0
     n_months = max(df["month"].nunique(), 1)
     avg_per_month = total_returns / n_months
-    top_channel = df["sales_channel"].mode().iat[0] if "sales_channel" in df and not df["sales_channel"].dropna().empty else "-"
+
+    # month-over-month comparison, based on the two most recent months in the
+    # current filter — this is the number that actually drives a decision.
+    months_sorted = sorted(df["month"].dropna().unique())
+    cur_month = months_sorted[-1] if months_sorted else None
+    prev_month = months_sorted[-2] if len(months_sorted) >= 2 else None
+
+    cur_df = df[df["month"] == cur_month] if cur_month else df.iloc[0:0]
+    prev_df = df[df["month"] == prev_month] if prev_month else None
+
+    cur_count = len(cur_df)
+    cur_value = cur_df["product_price"].fillna(0).sum() if "product_price" in cur_df else 0
+
+    count_delta_pct = value_delta_pct = None
+    if prev_df is not None and len(prev_df):
+        prev_count = len(prev_df)
+        prev_value = prev_df["product_price"].fillna(0).sum() if "product_price" in prev_df else 0
+        count_delta_pct = (cur_count - prev_count) / prev_count * 100
+        value_delta_pct = (cur_value - prev_value) / prev_value * 100 if prev_value else None
+
+    top_channel_counts = df["sales_channel"].fillna("ไม่ระบุ").value_counts() if "sales_channel" in df else pd.Series(dtype=int)
+    top_channel = top_channel_counts.index[0] if len(top_channel_counts) else "-"
+    top_channel_share = (top_channel_counts.iloc[0] / total_returns * 100) if total_returns and len(top_channel_counts) else 0
+
+    cur_month_label = MONTH_LABELS.get(cur_month, cur_month) if cur_month else "-"
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        kpi_card("ยอดตีกลับรวม", f"{total_returns:,}", "รายการ (ตามช่วงที่เลือก)", "kpi-pink")
+        kpi_card(
+            f"ยอดตีกลับ · {cur_month_label}", f"{cur_count:,}",
+            delta_html(count_delta_pct, bad_when_up=True), "kpi-pink",
+        )
     with c2:
-        kpi_card("มูลค่าสินค้าตีกลับ", f"฿{total_value:,.0f}", "บาท", "kpi-purple")
+        kpi_card(
+            f"มูลค่าตีกลับ · {cur_month_label}", f"฿{cur_value:,.0f}",
+            delta_html(value_delta_pct, bad_when_up=True), "kpi-purple",
+        )
     with c3:
-        kpi_card("เฉลี่ยต่อเดือน", f"{avg_per_month:,.0f}", "รายการ/เดือน", "kpi-blue")
+        kpi_card(
+            "เฉลี่ยต่อเดือน", f"{avg_per_month:,.0f}",
+            f'<span class="kpi-delta">รายการ/เดือน จาก {n_months} เดือนที่เลือก</span>', "kpi-blue",
+        )
     with c4:
-        kpi_card("ช่องทางตีกลับสูงสุด", f"{top_channel}", "ช่องทางที่พบบ่อยที่สุด", "kpi-orange")
+        kpi_card(
+            "ช่องทางตีกลับสูงสุด", top_channel,
+            f'<span class="kpi-delta">{top_channel_share:.0f}% ของยอดตีกลับทั้งหมด</span>', "kpi-orange",
+        )
 
     st.write("")
     col_main, col_side = st.columns([2, 1])
