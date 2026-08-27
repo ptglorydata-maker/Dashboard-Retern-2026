@@ -269,15 +269,15 @@ def main():
         """, unsafe_allow_html=True)
         page = st.radio("เมนู", ["ภาพรวม", "รายเดือน", "ช่องทางขาย", "สินค้า"], label_visibility="collapsed")
         st.markdown("<hr/>", unsafe_allow_html=True)
-        months_available = sorted(df["month"].dropna().unique())
-        month_filter = st.multiselect(
-            "เลือกเดือน", months_available,
-            default=months_available,
-            format_func=lambda m: MONTH_LABELS.get(m, m),
+        all_months = sorted(df["month"].dropna().unique())
+        selected_month = st.selectbox(
+            "เลือกเดือน", ["ทั้งหมด"] + all_months,
+            index=0,
+            format_func=lambda m: "ทั้งหมด" if m == "ทั้งหมด" else MONTH_LABELS.get(m, m),
         )
 
-    if month_filter:
-        df = df[df["month"].isin(month_filter)]
+    full_df = df
+    df = full_df if selected_month == "ทั้งหมด" else full_df[full_df["month"] == selected_month]
 
     if is_demo:
         st.warning(
@@ -295,14 +295,16 @@ def main():
     n_months = max(df["month"].nunique(), 1)
     avg_per_month = total_returns / n_months
 
-    # month-over-month comparison, based on the two most recent months in the
-    # current filter — this is the number that actually drives a decision.
-    months_sorted = sorted(df["month"].dropna().unique())
-    cur_month = months_sorted[-1] if months_sorted else None
-    prev_month = months_sorted[-2] if len(months_sorted) >= 2 else None
+    # Month-over-month comparison always looks at the true calendar-previous
+    # month from the full dataset — so the delta stays meaningful even when
+    # a single month is picked from the dropdown (no "previous month" inside
+    # a one-month selection to compare against otherwise).
+    cur_month = selected_month if selected_month != "ทั้งหมด" else (all_months[-1] if all_months else None)
+    cur_idx = all_months.index(cur_month) if cur_month in all_months else None
+    prev_month = all_months[cur_idx - 1] if cur_idx is not None and cur_idx > 0 else None
 
-    cur_df = df[df["month"] == cur_month] if cur_month else df.iloc[0:0]
-    prev_df = df[df["month"] == prev_month] if prev_month else None
+    cur_df = full_df[full_df["month"] == cur_month] if cur_month else full_df.iloc[0:0]
+    prev_df = full_df[full_df["month"] == prev_month] if prev_month else None
 
     cur_count = len(cur_df)
     cur_value = cur_df["product_price"].fillna(0).sum() if "product_price" in cur_df else 0
