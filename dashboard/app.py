@@ -255,6 +255,38 @@ def inject_css():
     .kpi-blue:hover   {{ box-shadow: 0 18px 34px -8px rgba(37,99,235,0.65); }}
     .kpi-orange:hover {{ box-shadow: 0 18px 34px -8px rgba(234,88,12,0.65); }}
 
+    /* Hero header */
+    .hero {{
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 16px; flex-wrap: wrap; margin-bottom: 22px;
+    }}
+    .hero-left {{ display: flex; align-items: center; gap: 14px; }}
+    .hero-icon {{
+        width: 52px; height: 52px; border-radius: 16px; flex-shrink: 0;
+        background: linear-gradient(135deg, {COLORS['pink']}, {COLORS['purple']});
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.6rem; box-shadow: 0 10px 22px -8px rgba(157,23,140,0.5);
+    }}
+    .hero-title {{
+        font-size: 1.7rem; font-weight: 700; line-height: 1.15; margin: 0;
+        background: linear-gradient(135deg, {COLORS['pink_dark']}, {COLORS['purple_dark']});
+        -webkit-background-clip: text; background-clip: text; color: transparent;
+    }}
+    .hero-sub {{
+        display: flex; align-items: center; gap: 6px; margin-top: 4px;
+        font-size: 0.8rem; color: var(--muted);
+    }}
+    .status-pill {{
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 0.76rem; font-weight: 600; padding: 6px 14px; border-radius: 999px;
+        white-space: nowrap;
+    }}
+    .status-pill.live {{ background: #dcfce7; color: #15803d; }}
+    .status-pill.live .status-dot {{ box-shadow: 0 0 0 3px #15803d33; }}
+    .status-pill.demo {{ background: #fef3c7; color: #b45309; }}
+    .status-pill.demo .status-dot {{ box-shadow: 0 0 0 3px #b4530933; }}
+    .status-dot {{ width: 7px; height: 7px; border-radius: 50%; background: currentColor; }}
+
     /* Panel cards */
     .panel {{
         background: white; border-radius: 18px; padding: 20px 22px;
@@ -402,8 +434,24 @@ def main():
             icon="⚠️",
         )
 
-    st.markdown(f"### Dashboard สินค้าตีกลับ ปี 2569")
-    st.caption(f"อัปเดตล่าสุด: {datetime.now().strftime('%d %b %Y %H:%M')}")
+    status_class = "demo" if is_demo else "live"
+    status_label = "ข้อมูลตัวอย่าง (Demo)" if is_demo else "ข้อมูลจริง"
+    st.markdown(f"""
+    <div class="hero">
+        <div class="hero-left">
+            <div class="hero-icon">📦</div>
+            <div>
+                <p class="hero-title">Dashboard สินค้าตีกลับ ปี 2569</p>
+                <div class="hero-sub">
+                    <span>🕐 อัปเดตล่าสุด: {datetime.now().strftime('%d %b %Y %H:%M')}</span>
+                </div>
+            </div>
+        </div>
+        <div class="status-pill {status_class}">
+            <span class="status-dot"></span>{status_label}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     total_returns = len(df)
     total_value = df["product_price"].fillna(0).sum() if "product_price" in df else 0
