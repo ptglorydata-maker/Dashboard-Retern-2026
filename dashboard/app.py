@@ -1,0 +1,347 @@
+"""Dashboard สินค้าตีกลับ ปี 2569 — Streamlit app.
+
+Reads the pipeline's combined CSV (pipeline/output/returns_2569_combined.csv)
+if it exists. Otherwise falls back to generated demo data so the UI can be
+previewed before the pipeline has been run — a yellow banner makes that
+state obvious so nobody mistakes the demo numbers for real ones.
+
+Run:
+    streamlit run dashboard/app.py
+"""
+
+import os
+from datetime import datetime
+
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
+import streamlit as st
+
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
+COMBINED_CSV_PATH = os.path.join(os.path.dirname(__file__), "..", "pipeline", "output", "returns_2569_combined.csv")
+CACHE_TTL_SECONDS = 300
+
+COLORS = {
+    "pink": "#ec4899",
+    "pink_dark": "#db2777",
+    "purple": "#8b5cf6",
+    "purple_dark": "#7c3aed",
+    "blue": "#3b82f6",
+    "blue_dark": "#2563eb",
+    "orange": "#f97316",
+    "orange_dark": "#ea580c",
+    "ink": "#1f2430",
+    "muted": "#8a8fa3",
+}
+
+MONTH_LABELS = {
+    "2026-01": "ม.ค.69", "2026-02": "ก.พ.69", "2026-03": "มี.ค.69",
+    "2026-04": "เม.ย.69", "2026-05": "พ.ค.69", "2026-06": "มิ.ย.69",
+    "2026-07": "ก.ค.69", "2026-08": "ส.ค.69", "2026-09": "ก.ย.69",
+    "2026-10": "ต.ค.69", "2026-11": "พ.ย.69", "2026-12": "ธ.ค.69",
+}
+
+st.set_page_config(page_title="Dashboard สินค้าตีกลับ 2569", page_icon="📦", layout="wide")
+
+
+# ---------------------------------------------------------------------------
+# Data loading
+# ---------------------------------------------------------------------------
+@st.cache_data(ttl=CACHE_TTL_SECONDS)
+def load_data() -> tuple[pd.DataFrame, bool]:
+    """Returns (dataframe, is_demo)."""
+    if os.path.exists(COMBINED_CSV_PATH):
+        df = pd.read_csv(COMBINED_CSV_PATH, parse_dates=["order_time", "ship_date"])
+        return df, False
+    return _demo_data(), True
+
+
+def _demo_data() -> pd.DataFrame:
+    rng = np.random.default_rng(seed=69)
+    months = list(MONTH_LABELS.keys())[:8]
+    channels = ["MiniShop", "Shopee", "Lazada", "TikTok", "FB", "CRM"]
+    provinces = ["กรุงเทพฯ", "เชียงใหม่", "ขอนแก่น", "ชลบุรี", "สงขลา", "นครราชสีมา"]
+    rows = []
+    for month in months:
+        n = int(rng.integers(180, 420))
+        for i in range(n):
+            order_time = pd.Timestamp(month + "-01") + pd.to_timedelta(int(rng.integers(0, 27)), unit="D")
+            rows.append({
+                "month": month,
+                "internal_order_id": f"DEMO-{month}-{i:04d}",
+                "sales_channel": rng.choice(channels),
+                "province": rng.choice(provinces),
+                "product_name": rng.choice(["วิตามินซี", "คอลลาเจน", "โปรตีน", "น้ำมันปลา", "โพรไบโอติก"]),
+                "product_price": float(rng.integers(190, 1590)),
+                "order_time": order_time,
+                "is_returned": True,
+            })
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
+# Style — pink/purple gradient admin-dashboard look
+# ---------------------------------------------------------------------------
+def inject_css():
+    st.markdown(f"""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&display=swap');
+
+    html, body, [class*="css"] {{ font-family: 'Prompt', sans-serif; }}
+
+    :root {{
+        --ink: {COLORS['ink']};
+        --muted: {COLORS['muted']};
+    }}
+
+    [data-testid="stAppViewContainer"] {{ background: #f4f5fa; }}
+    [data-testid="stHeader"] {{ background: transparent; }}
+    .block-container {{ padding-top: 1.5rem; max-width: 1400px; }}
+
+    /* Sidebar */
+    [data-testid="stSidebar"] {{
+        background: linear-gradient(180deg, #2b1a4a 0%, #4a1f5c 55%, #6d2568 100%);
+    }}
+    [data-testid="stSidebar"] * {{ color: #f1e9ff !important; }}
+    [data-testid="stSidebar"] .stRadio label {{
+        padding: 0.35rem 0.6rem; border-radius: 10px; margin-bottom: 2px;
+    }}
+    [data-testid="stSidebar"] hr {{ border-color: rgba(255,255,255,0.15); }}
+
+    .brand {{
+        display:flex; align-items:center; gap:10px; padding: 4px 0 18px 0;
+    }}
+    .brand-badge {{
+        width:36px; height:36px; border-radius:10px;
+        background: linear-gradient(135deg, {COLORS['pink']}, {COLORS['purple']});
+        display:flex; align-items:center; justify-content:center; font-size:18px;
+    }}
+    .brand-title {{ font-weight:700; font-size:1.05rem; color:#fff !important; }}
+    .brand-sub {{ font-size:0.7rem; color:#cbb8ee !important; }}
+
+    /* KPI gradient cards */
+    .kpi-card {{
+        border-radius: 18px; padding: 20px 22px; color: white;
+        box-shadow: 0 10px 25px -8px rgba(0,0,0,0.25);
+        min-height: 118px; position: relative; overflow:hidden;
+    }}
+    .kpi-card .kpi-label {{ font-size: 0.8rem; opacity: 0.9; }}
+    .kpi-card .kpi-value {{ font-size: 1.6rem; font-weight: 700; margin-top: 6px; }}
+    .kpi-card .kpi-delta {{ font-size: 0.78rem; margin-top: 6px; opacity: 0.92; }}
+    .kpi-pink   {{ background: linear-gradient(135deg, {COLORS['pink']}, {COLORS['pink_dark']}); }}
+    .kpi-purple {{ background: linear-gradient(135deg, {COLORS['purple']}, {COLORS['purple_dark']}); }}
+    .kpi-blue   {{ background: linear-gradient(135deg, {COLORS['blue']}, {COLORS['blue_dark']}); }}
+    .kpi-orange {{ background: linear-gradient(135deg, {COLORS['orange']}, {COLORS['orange_dark']}); }}
+
+    /* Panel cards */
+    .panel {{
+        background: white; border-radius: 18px; padding: 20px 22px;
+        box-shadow: 0 6px 20px -12px rgba(31,36,48,0.15);
+        height: 100%;
+    }}
+    .panel h4 {{ margin: 0 0 2px 0; color: var(--ink); font-size: 1rem; }}
+    .panel .panel-sub {{ color: var(--muted); font-size: 0.78rem; margin-bottom: 10px; }}
+
+    .badge {{
+        padding: 3px 12px; border-radius: 999px; font-size: 0.72rem; font-weight: 600;
+        color: white; display:inline-block;
+    }}
+    .badge-pink {{ background: {COLORS['pink']}; }}
+    .badge-purple {{ background: {COLORS['purple']}; }}
+    .badge-blue {{ background: {COLORS['blue']}; }}
+    .badge-orange {{ background: {COLORS['orange']}; }}
+    .badge-gray {{ background: #9aa0ae; }}
+
+    .activity-row {{ display:flex; gap:12px; align-items:flex-start; padding: 9px 0; border-bottom: 1px solid #f0f1f6; }}
+    .activity-dot {{ width:10px; height:10px; border-radius:50%; margin-top:6px; flex-shrink:0; }}
+    .activity-title {{ font-size:0.85rem; color: var(--ink); font-weight:600; }}
+    .activity-sub {{ font-size:0.75rem; color: var(--muted); }}
+    .activity-time {{ font-size:0.7rem; color: var(--muted); margin-left:auto; white-space:nowrap; }}
+
+    div[data-testid="stDataFrame"] {{ border-radius: 12px; overflow: hidden; }}
+    </style>
+    """, unsafe_allow_html=True)
+
+
+def kpi_card(label: str, value: str, delta: str, css_class: str):
+    st.markdown(f"""
+    <div class="kpi-card {css_class}">
+        <div class="kpi-label">{label}</div>
+        <div class="kpi-value">{value}</div>
+        <div class="kpi-delta">{delta}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def panel_start(title: str, subtitle: str = ""):
+    sub_html = f'<div class="panel-sub">{subtitle}</div>' if subtitle else ""
+    st.markdown(f'<div class="panel"><h4>{title}</h4>{sub_html}', unsafe_allow_html=True)
+
+
+def panel_end():
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+# ---------------------------------------------------------------------------
+# Charts
+# ---------------------------------------------------------------------------
+def trend_chart(df: pd.DataFrame) -> go.Figure:
+    monthly = df.groupby("month").size().reindex(sorted(df["month"].unique()))
+    labels = [MONTH_LABELS.get(m, m) for m in monthly.index]
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=labels, y=monthly.values, mode="lines", fill="tozeroy",
+        line=dict(color=COLORS["pink"], width=3, shape="spline"),
+        fillcolor="rgba(236,72,153,0.15)",
+        hovertemplate="%{x}: %{y:,} รายการ<extra></extra>",
+    ))
+    fig.update_layout(
+        margin=dict(l=10, r=10, t=10, b=10), height=280,
+        plot_bgcolor="white", paper_bgcolor="white",
+        xaxis=dict(showgrid=False),
+        yaxis=dict(showgrid=True, gridcolor="#f0f1f6"),
+        showlegend=False,
+    )
+    return fig
+
+
+def donut_chart(df: pd.DataFrame) -> go.Figure:
+    counts = df["sales_channel"].fillna("ไม่ระบุ").value_counts().head(4)
+    palette = [COLORS["pink"], COLORS["purple"], COLORS["blue"], COLORS["orange"]]
+    fig = go.Figure(data=[go.Pie(
+        labels=counts.index, values=counts.values, hole=0.68,
+        marker=dict(colors=palette[:len(counts)]),
+        textinfo="none",
+    )])
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=0, b=0), height=220,
+        showlegend=False, paper_bgcolor="white",
+    )
+    return fig, counts, palette
+
+
+# ---------------------------------------------------------------------------
+# App
+# ---------------------------------------------------------------------------
+def main():
+    inject_css()
+    df, is_demo = load_data()
+
+    with st.sidebar:
+        st.markdown("""
+        <div class="brand">
+            <div class="brand-badge">📦</div>
+            <div>
+                <div class="brand-title">PT Glory</div>
+                <div class="brand-sub">Returns Dashboard 2569</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        page = st.radio("เมนู", ["ภาพรวม", "รายเดือน", "ช่องทางขาย", "สินค้า"], label_visibility="collapsed")
+        st.markdown("<hr/>", unsafe_allow_html=True)
+        months_available = sorted(df["month"].dropna().unique())
+        month_filter = st.multiselect(
+            "เลือกเดือน", months_available,
+            default=months_available,
+            format_func=lambda m: MONTH_LABELS.get(m, m),
+        )
+
+    if month_filter:
+        df = df[df["month"].isin(month_filter)]
+
+    if is_demo:
+        st.warning(
+            "⚠️ ยังไม่พบไฟล์ข้อมูลรวมจาก pipeline (`pipeline/output/returns_2569_combined.csv`) "
+            "— แสดงผลด้วย **ข้อมูลตัวอย่าง (demo)** เพื่อพรีวิว UI เท่านั้น รันสคริปต์ `combine_returns.py` "
+            "แล้วรีเฟรชหน้านี้เพื่อดูข้อมูลจริง",
+            icon="⚠️",
+        )
+
+    st.markdown(f"### Dashboard สินค้าตีกลับ ปี 2569")
+    st.caption(f"อัปเดตล่าสุด: {datetime.now().strftime('%d %b %Y %H:%M')}")
+
+    total_returns = len(df)
+    total_value = df["product_price"].fillna(0).sum() if "product_price" in df else 0
+    n_months = max(df["month"].nunique(), 1)
+    avg_per_month = total_returns / n_months
+    top_channel = df["sales_channel"].mode().iat[0] if "sales_channel" in df and not df["sales_channel"].dropna().empty else "-"
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        kpi_card("ยอดตีกลับรวม", f"{total_returns:,}", "รายการ (ตามช่วงที่เลือก)", "kpi-pink")
+    with c2:
+        kpi_card("มูลค่าสินค้าตีกลับ", f"฿{total_value:,.0f}", "บาท", "kpi-purple")
+    with c3:
+        kpi_card("เฉลี่ยต่อเดือน", f"{avg_per_month:,.0f}", "รายการ/เดือน", "kpi-blue")
+    with c4:
+        kpi_card("ช่องทางตีกลับสูงสุด", f"{top_channel}", "ช่องทางที่พบบ่อยที่สุด", "kpi-orange")
+
+    st.write("")
+    col_main, col_side = st.columns([2, 1])
+
+    with col_main:
+        panel_start("แนวโน้มยอดตีกลับรายเดือน", "จำนวนรายการตีกลับต่อเดือน")
+        st.plotly_chart(trend_chart(df), use_container_width=True, config={"displayModeBar": False})
+        panel_end()
+
+    with col_side:
+        panel_start("สัดส่วนช่องทางตีกลับ", "Top 4 ช่องทางขาย")
+        fig, counts, palette = donut_chart(df)
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+        legend_html = ""
+        total = counts.sum() or 1
+        for (name, val), color in zip(counts.items(), palette):
+            pct = val / total * 100
+            legend_html += (
+                f'<div style="display:flex;justify-content:space-between;font-size:0.8rem;'
+                f'margin-bottom:6px;"><span><span style="display:inline-block;width:8px;height:8px;'
+                f'border-radius:50%;background:{color};margin-right:8px;"></span>{name}</span>'
+                f'<b>{pct:.0f}%</b></div>'
+            )
+        st.markdown(legend_html, unsafe_allow_html=True)
+        panel_end()
+
+    st.write("")
+    col_a, col_b = st.columns([1, 2])
+
+    with col_a:
+        panel_start("กิจกรรมล่าสุด", "รายการตีกลับที่เพิ่มเข้ามาล่าสุด")
+        recent = df.sort_values("order_time", ascending=False).head(6) if "order_time" in df else df.head(6)
+        dot_colors = [COLORS["pink"], COLORS["purple"], COLORS["blue"], COLORS["orange"]]
+        for i, (_, row) in enumerate(recent.iterrows()):
+            when = row["order_time"].strftime("%d %b") if pd.notna(row.get("order_time")) else "-"
+            st.markdown(f"""
+            <div class="activity-row">
+                <div class="activity-dot" style="background:{dot_colors[i % 4]}"></div>
+                <div>
+                    <div class="activity-title">{row.get('product_name', 'สินค้า')}</div>
+                    <div class="activity-sub">{row.get('sales_channel', '-')} · {row.get('province', '-')}</div>
+                </div>
+                <div class="activity-time">{when}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        panel_end()
+
+    with col_b:
+        panel_start("รายการตีกลับ", "ตารางรายการล่าสุด")
+        table_cols = [c for c in [
+            "internal_order_id", "sales_channel", "province",
+            "product_name", "product_price", "order_time",
+        ] if c in df.columns]
+        display_df = df.sort_values("order_time", ascending=False)[table_cols].head(20).rename(columns={
+            "internal_order_id": "เลขออเดอร์",
+            "sales_channel": "ช่องทาง",
+            "province": "จังหวัด",
+            "product_name": "สินค้า",
+            "product_price": "ราคา (บาท)",
+            "order_time": "วันที่สั่งซื้อ",
+        })
+        st.dataframe(display_df, use_container_width=True, hide_index=True, height=320)
+        panel_end()
+
+
+if __name__ == "__main__":
+    main()
