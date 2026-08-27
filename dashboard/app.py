@@ -36,6 +36,14 @@ COLORS = {
     "muted": "#8a8fa3",
 }
 
+# Schema A's `sales_channel` (from the "แพลตฟอร์ม" column) stores the internal
+# sales-system name rather than the team that runs it — map those raw values to
+# the team name for display, confirmed by the user against the source data.
+CHANNEL_DISPLAY_MAP = {
+    "MiniShop": "Facebook",
+    "shopss": "CRM",
+}
+
 MONTH_LABELS = {
     "2026-01": "ม.ค.69", "2026-02": "ก.พ.69", "2026-03": "มี.ค.69",
     "2026-04": "เม.ย.69", "2026-05": "พ.ค.69", "2026-06": "มิ.ย.69",
@@ -54,14 +62,20 @@ def load_data() -> tuple[pd.DataFrame, bool]:
     """Returns (dataframe, is_demo)."""
     if os.path.exists(COMBINED_CSV_PATH):
         df = pd.read_csv(COMBINED_CSV_PATH, parse_dates=["order_time", "ship_date"])
-        return df, False
-    return _demo_data(), True
+        return _apply_channel_labels(df), False
+    return _apply_channel_labels(_demo_data()), True
+
+
+def _apply_channel_labels(df: pd.DataFrame) -> pd.DataFrame:
+    if "sales_channel" in df.columns:
+        df["sales_channel"] = df["sales_channel"].replace(CHANNEL_DISPLAY_MAP)
+    return df
 
 
 def _demo_data() -> pd.DataFrame:
     rng = np.random.default_rng(seed=69)
     months = list(MONTH_LABELS.keys())[:8]
-    channels = ["MiniShop", "Shopee", "Lazada", "TikTok", "FB", "CRM"]
+    channels = ["MiniShop", "shopss", "Shopee", "Lazada", "TikTok"]
     provinces = ["กรุงเทพฯ", "เชียงใหม่", "ขอนแก่น", "ชลบุรี", "สงขลา", "นครราชสีมา"]
     rows = []
     for month in months:
