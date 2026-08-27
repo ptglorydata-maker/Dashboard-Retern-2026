@@ -1,21 +1,29 @@
 """Dashboard สินค้าตีกลับ ปี 2569 — Streamlit app.
 
-Reads the pipeline's combined CSV (pipeline/output/returns_2569_combined.csv)
-if it exists. Otherwise falls back to generated demo data so the UI can be
-previewed before the pipeline has been run — a yellow banner makes that
-state obvious so nobody mistakes the demo numbers for real ones.
+Data source, in priority order:
+1. The pipeline's combined CSV (pipeline/output/returns_2569_combined.csv),
+   when running locally after `python pipeline/combine_returns.py`.
+2. A live pull straight from the source Google Sheets, using service-account
+   credentials from st.secrets["gcp_service_account"] — this is what runs on
+   Streamlit Community Cloud, which doesn't have the local pipeline output.
+3. Generated demo data, so the UI can still be previewed with neither of the
+   above — a yellow banner makes that state obvious so nobody mistakes the
+   demo numbers for real ones.
 
-Run:
+Run locally:
     streamlit run dashboard/app.py
 """
 
 import os
+import sys
 from datetime import datetime
 
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "pipeline"))
 
 # ---------------------------------------------------------------------------
 # Config
@@ -62,16 +70,51 @@ def load_data() -> tuple[pd.DataFrame, bool]:
     """Returns (dataframe, is_demo)."""
     if os.path.exists(COMBINED_CSV_PATH):
         df = pd.read_csv(COMBINED_CSV_PATH, low_memory=False)
-        # read_csv's parse_dates can silently no-op depending on the pandas
-        # string-dtype backend in use, so parse explicitly instead of relying on it.
-        for col in ("order_time", "ship_date"):
-            if col in df.columns:
-                df[col] = pd.to_datetime(df[col], errors="coerce")
-        # Schema A months carry every order (returned or not) with an is_returned
-        # flag — this dashboard is about returns only, so filter down to those.
-        df = df[df["is_returned"] == True]  # noqa: E712
+        df = _finalize(df)
+        return _apply_channel_labels(df), False
+    if _has_sheets_secret():
+        df = _load_live_from_sheets()
+        df = _finalize(df)
         return _apply_channel_labels(df), False
     return _apply_channel_labels(_demo_data()), True
+
+
+def _finalize(df: pd.DataFrame) -> pd.DataFrame:
+    # read_csv's parse_dates can silently no-op depending on the pandas
+    # string-dtype backend in use, so parse explicitly instead of relying on it.
+    for col in ("order_time", "ship_date"):
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors="coerce")
+    # Schema A months carry every order (returned or not) with an is_returned
+    # flag — this dashboard is about returns only, so filter down to those.
+    return df[df["is_returned"] == True]  # noqa: E712
+
+
+def _has_sheets_secret() -> bool:
+    try:
+        return "gcp_service_account" in st.secrets
+    except Exception:
+        return False
+
+
+@st.cache_data(ttl=CACHE_TTL_SECONDS)
+def _load_live_from_sheets() -> pd.DataFrame:
+    import gspread
+
+    from combine_returns import read_sheet_raw
+    from config import SOURCE_SHEETS
+    from normalize import normalize
+
+    gc = gspread.service_account_from_dict(dict(st.secrets["gcp_service_account"]))
+    frames = []
+    for src in SOURCE_SHEETS:
+        raw = read_sheet_raw(gc, src["spreadsheet_id"], src["gid"])
+        if raw.empty:
+            continue
+        frames.append(normalize(raw, src["schema"], src["month"]))
+    if not frames:
+        raise RuntimeError("No data read from any source sheet.")
+    return pd.concat(frames, ignore_index=True)
 
 
 def _apply_channel_labels(df: pd.DataFrame) -> pd.DataFrame:
