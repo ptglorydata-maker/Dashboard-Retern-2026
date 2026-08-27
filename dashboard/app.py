@@ -14,6 +14,7 @@ Run locally:
     streamlit run dashboard/app.py
 """
 
+import base64
 import os
 import sys
 from datetime import datetime
@@ -29,7 +30,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "pipeline"))
 # Config
 # ---------------------------------------------------------------------------
 COMBINED_CSV_PATH = os.path.join(os.path.dirname(__file__), "..", "pipeline", "output", "returns_2569_combined.csv")
+LOGO_PATH = os.path.join(os.path.dirname(__file__), "assets", "logo-mark.png")
 CACHE_TTL_SECONDS = 300
+
+
+@st.cache_data
+def _logo_data_uri() -> str:
+    with open(LOGO_PATH, "rb") as f:
+        return "data:image/png;base64," + base64.b64encode(f.read()).decode()
 
 COLORS = {
     "pink": "#ec4899",
@@ -59,7 +67,7 @@ MONTH_LABELS = {
     "2026-10": "ต.ค.69", "2026-11": "พ.ย.69", "2026-12": "ธ.ค.69",
 }
 
-st.set_page_config(page_title="Dashboard สินค้าตีกลับ 2569", page_icon="📦", layout="wide")
+st.set_page_config(page_title="Dashboard สินค้าตีกลับ 2569", page_icon=LOGO_PATH, layout="wide")
 
 
 # ---------------------------------------------------------------------------
@@ -179,10 +187,11 @@ def inject_css():
         display:flex; align-items:center; gap:10px; padding: 4px 0 18px 0;
     }}
     .brand-badge {{
-        width:36px; height:36px; border-radius:10px;
-        background: linear-gradient(135deg, {COLORS['pink']}, {COLORS['purple']});
-        display:flex; align-items:center; justify-content:center; font-size:18px;
+        width:40px; height:40px; border-radius:10px; background: white;
+        display:flex; align-items:center; justify-content:center; padding: 5px;
+        box-shadow: 0 4px 12px -4px rgba(0,0,0,0.35);
     }}
+    .brand-badge img {{ width: 100%; height: 100%; object-fit: contain; }}
     .brand-title {{ font-weight:700; font-size:1.05rem; color:#fff !important; }}
     .brand-sub {{ font-size:0.7rem; color:#cbb8ee !important; }}
 
@@ -263,10 +272,11 @@ def inject_css():
     .hero-left {{ display: flex; align-items: center; gap: 14px; }}
     .hero-icon {{
         width: 68px; height: 68px; border-radius: 18px; flex-shrink: 0;
-        background: linear-gradient(135deg, {COLORS['pink']}, {COLORS['purple']});
+        background: white; padding: 9px;
         display: flex; align-items: center; justify-content: center;
-        font-size: 2.1rem; box-shadow: 0 10px 22px -8px rgba(157,23,140,0.5);
+        box-shadow: 0 10px 22px -8px rgba(157,23,140,0.4);
     }}
+    .hero-icon img {{ width: 100%; height: 100%; object-fit: contain; }}
     .hero-title {{
         font-size: 2.6rem; font-weight: 800; line-height: 1.15; margin: 0;
         background: linear-gradient(135deg, {COLORS['pink_dark']}, {COLORS['purple_dark']});
@@ -405,9 +415,9 @@ def main():
     df, is_demo = load_data()
 
     with st.sidebar:
-        st.markdown("""
+        st.markdown(f"""
         <div class="brand">
-            <div class="brand-badge">📦</div>
+            <div class="brand-badge"><img src="{_logo_data_uri()}" alt="PT Glory"/></div>
             <div>
                 <div class="brand-title">PT Glory</div>
                 <div class="brand-sub">Returns Dashboard 2569</div>
@@ -439,7 +449,7 @@ def main():
     st.markdown(f"""
     <div class="hero">
         <div class="hero-left">
-            <div class="hero-icon">📦</div>
+            <div class="hero-icon"><img src="{_logo_data_uri()}" alt="PT Glory"/></div>
             <div>
                 <p class="hero-title">Dashboard สินค้าตีกลับ ปี 2569</p>
                 <div class="hero-sub">
