@@ -1,15 +1,22 @@
 """Dashboard สินค้าตีกลับ ปี 2569 — Streamlit app.
 
-Reads the pipeline's combined CSV (pipeline/output/returns_2569_combined.csv)
-if it exists. Otherwise falls back to generated demo data so the UI can be
-previewed before the pipeline has been run — a yellow banner makes that
-state obvious so nobody mistakes the demo numbers for real ones.
+Data source, in priority order:
+1. The pipeline's combined CSV (pipeline/output/returns_2569_combined.csv),
+   when running locally after `python pipeline/combine_returns.py`.
+2. A live pull straight from the source Google Sheets, using service-account
+   credentials from st.secrets["gcp_service_account"] — this is what runs on
+   Streamlit Community Cloud, which doesn't have the local pipeline output.
+3. Generated demo data, so the UI can still be previewed with neither of the
+   above — a yellow banner makes that state obvious so nobody mistakes the
+   demo numbers for real ones.
 
-Run:
+Run locally:
     streamlit run dashboard/app.py
 """
 
+import base64
 import os
+import sys
 from datetime import datetime
 
 import numpy as np
@@ -17,11 +24,20 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "pipeline"))
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
 COMBINED_CSV_PATH = os.path.join(os.path.dirname(__file__), "..", "pipeline", "output", "returns_2569_combined.csv")
+LOGO_PATH = os.path.join(os.path.dirname(__file__), "assets", "logo-mark.png")
 CACHE_TTL_SECONDS = 300
+
+
+@st.cache_data
+def _logo_data_uri() -> str:
+    with open(LOGO_PATH, "rb") as f:
+        return "data:image/png;base64," + base64.b64encode(f.read()).decode()
 
 COLORS = {
     "pink": "#ec4899",
@@ -51,7 +67,7 @@ MONTH_LABELS = {
     "2026-10": "ต.ค.69", "2026-11": "พ.ย.69", "2026-12": "ธ.ค.69",
 }
 
-st.set_page_config(page_title="Dashboard สินค้าตีกลับ 2569", page_icon="📦", layout="wide")
+st.set_page_config(page_title="Dashboard สินค้าตีกลับ 2569", page_icon=LOGO_PATH, layout="wide")
 
 
 # ---------------------------------------------------------------------------
@@ -62,16 +78,51 @@ def load_data() -> tuple[pd.DataFrame, bool]:
     """Returns (dataframe, is_demo)."""
     if os.path.exists(COMBINED_CSV_PATH):
         df = pd.read_csv(COMBINED_CSV_PATH, low_memory=False)
-        # read_csv's parse_dates can silently no-op depending on the pandas
-        # string-dtype backend in use, so parse explicitly instead of relying on it.
-        for col in ("order_time", "ship_date"):
-            if col in df.columns:
-                df[col] = pd.to_datetime(df[col], errors="coerce")
-        # Schema A months carry every order (returned or not) with an is_returned
-        # flag — this dashboard is about returns only, so filter down to those.
-        df = df[df["is_returned"] == True]  # noqa: E712
+        df = _finalize(df)
+        return _apply_channel_labels(df), False
+    if _has_sheets_secret():
+        df = _load_live_from_sheets()
+        df = _finalize(df)
         return _apply_channel_labels(df), False
     return _apply_channel_labels(_demo_data()), True
+
+
+def _finalize(df: pd.DataFrame) -> pd.DataFrame:
+    # read_csv's parse_dates can silently no-op depending on the pandas
+    # string-dtype backend in use, so parse explicitly instead of relying on it.
+    for col in ("order_time", "ship_date"):
+        if col in df.columns:
+            df[col] = pd.to_datetime(df[col], errors="coerce")
+    # Schema A months carry every order (returned or not) with an is_returned
+    # flag — this dashboard is about returns only, so filter down to those.
+    return df[df["is_returned"] == True]  # noqa: E712
+
+
+def _has_sheets_secret() -> bool:
+    try:
+        return "gcp_service_account" in st.secrets
+    except Exception:
+        return False
+
+
+@st.cache_data(ttl=CACHE_TTL_SECONDS)
+def _load_live_from_sheets() -> pd.DataFrame:
+    import gspread
+
+    from combine_returns import read_sheet_raw
+    from config import SOURCE_SHEETS
+    from normalize import normalize
+
+    gc = gspread.service_account_from_dict(dict(st.secrets["gcp_service_account"]))
+    frames = []
+    for src in SOURCE_SHEETS:
+        raw = read_sheet_raw(gc, src["spreadsheet_id"], src["gid"])
+        if raw.empty:
+            continue
+        frames.append(normalize(raw, src["schema"], src["month"]))
+    if not frames:
+        raise RuntimeError("No data read from any source sheet.")
+    return pd.concat(frames, ignore_index=True)
 
 
 def _apply_channel_labels(df: pd.DataFrame) -> pd.DataFrame:
@@ -136,38 +187,115 @@ def inject_css():
         display:flex; align-items:center; gap:10px; padding: 4px 0 18px 0;
     }}
     .brand-badge {{
-        width:36px; height:36px; border-radius:10px;
-        background: linear-gradient(135deg, {COLORS['pink']}, {COLORS['purple']});
-        display:flex; align-items:center; justify-content:center; font-size:18px;
+        width:40px; height:40px; border-radius:10px; background: white;
+        display:flex; align-items:center; justify-content:center; padding: 5px;
+        box-shadow: 0 4px 12px -4px rgba(0,0,0,0.35);
     }}
+    .brand-badge img {{ width: 100%; height: 100%; object-fit: contain; }}
     .brand-title {{ font-weight:700; font-size:1.05rem; color:#fff !important; }}
     .brand-sub {{ font-size:0.7rem; color:#cbb8ee !important; }}
 
     /* KPI gradient cards */
     .kpi-card {{
-        border-radius: 18px; padding: 22px 24px; color: white;
-        box-shadow: 0 10px 25px -8px rgba(0,0,0,0.25);
-        min-height: 140px; position: relative; overflow:hidden;
+        border-radius: 20px; padding: 22px 24px; color: white;
+        height: 168px; position: relative; overflow: hidden;
+        display: flex; flex-direction: column; justify-content: space-between;
+        border: 1px solid rgba(255,255,255,0.25);
+        transition: transform 0.18s ease, box-shadow 0.18s ease;
     }}
+    .kpi-card:hover {{ transform: translateY(-3px); }}
+    .kpi-card::before {{
+        content: ""; position: absolute; top: -35px; right: -35px;
+        width: 120px; height: 120px; border-radius: 50%;
+        background: rgba(255,255,255,0.14); pointer-events: none;
+    }}
+    .kpi-card::after {{
+        content: ""; position: absolute; bottom: -50px; left: -20px;
+        width: 100px; height: 100px; border-radius: 50%;
+        background: rgba(255,255,255,0.08); pointer-events: none;
+    }}
+    .kpi-card .kpi-top {{ display: flex; align-items: flex-start; justify-content: space-between; }}
     .kpi-card .kpi-label {{
-        font-size: 0.76rem; font-weight: 500; opacity: 0.88;
+        font-size: 0.76rem; font-weight: 500; opacity: 0.9;
         text-transform: uppercase; letter-spacing: 0.04em;
+        position: relative; z-index: 1;
+    }}
+    .kpi-card .kpi-icon {{
+        width: 34px; height: 34px; border-radius: 11px; flex-shrink: 0;
+        background: rgba(255,255,255,0.22); backdrop-filter: blur(2px);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 1.05rem; position: relative; z-index: 1;
     }}
     .kpi-card .kpi-value {{
-        font-size: 2.5rem; font-weight: 700; margin-top: 8px; line-height: 1.05;
+        font-size: 2.35rem; font-weight: 700; line-height: 1.05;
         letter-spacing: -0.01em; font-variant-numeric: tabular-nums;
-        text-shadow: 0 2px 10px rgba(0,0,0,0.12);
+        text-shadow: 0 2px 10px rgba(0,0,0,0.15);
+        white-space: nowrap; overflow: hidden;
+        position: relative; z-index: 1;
     }}
+    .kpi-card .kpi-value.kpi-value-long {{ font-size: 1.65rem; }}
+    .kpi-card .kpi-value.kpi-value-xlong {{ font-size: 1.3rem; }}
     .kpi-card .kpi-delta {{
-        display: inline-flex; align-items: center; gap: 5px;
-        font-size: 0.76rem; font-weight: 500; margin-top: 12px;
-        background: rgba(255,255,255,0.16); padding: 4px 10px; border-radius: 999px;
+        display: inline-flex; align-items: center; gap: 5px; align-self: flex-start;
+        font-size: 0.76rem; font-weight: 500;
+        background: rgba(255,255,255,0.18); padding: 4px 10px; border-radius: 999px;
+        position: relative; z-index: 1; white-space: nowrap;
+        max-width: 100%; overflow: hidden; text-overflow: ellipsis;
     }}
     .kpi-card .delta-arrow {{ font-weight: 700; }}
-    .kpi-pink   {{ background: linear-gradient(135deg, {COLORS['pink']}, {COLORS['pink_dark']}); }}
-    .kpi-purple {{ background: linear-gradient(135deg, {COLORS['purple']}, {COLORS['purple_dark']}); }}
-    .kpi-blue   {{ background: linear-gradient(135deg, {COLORS['blue']}, {COLORS['blue_dark']}); }}
-    .kpi-orange {{ background: linear-gradient(135deg, {COLORS['orange']}, {COLORS['orange_dark']}); }}
+    .kpi-pink {{
+        background: linear-gradient(135deg, {COLORS['pink']}, {COLORS['pink_dark']});
+        box-shadow: 0 14px 28px -10px rgba(219,39,119,0.55);
+    }}
+    .kpi-purple {{
+        background: linear-gradient(135deg, {COLORS['purple']}, {COLORS['purple_dark']});
+        box-shadow: 0 14px 28px -10px rgba(124,58,237,0.55);
+    }}
+    .kpi-blue {{
+        background: linear-gradient(135deg, {COLORS['blue']}, {COLORS['blue_dark']});
+        box-shadow: 0 14px 28px -10px rgba(37,99,235,0.55);
+    }}
+    .kpi-orange {{
+        background: linear-gradient(135deg, {COLORS['orange']}, {COLORS['orange_dark']});
+        box-shadow: 0 14px 28px -10px rgba(234,88,12,0.55);
+    }}
+    .kpi-pink:hover   {{ box-shadow: 0 18px 34px -8px rgba(219,39,119,0.65); }}
+    .kpi-purple:hover {{ box-shadow: 0 18px 34px -8px rgba(124,58,237,0.65); }}
+    .kpi-blue:hover   {{ box-shadow: 0 18px 34px -8px rgba(37,99,235,0.65); }}
+    .kpi-orange:hover {{ box-shadow: 0 18px 34px -8px rgba(234,88,12,0.65); }}
+
+    /* Hero header */
+    .hero {{
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 16px; flex-wrap: wrap; margin-bottom: 22px;
+    }}
+    .hero-left {{ display: flex; align-items: center; gap: 14px; }}
+    .hero-icon {{
+        width: 68px; height: 68px; border-radius: 18px; flex-shrink: 0;
+        background: white; padding: 9px;
+        display: flex; align-items: center; justify-content: center;
+        box-shadow: 0 10px 22px -8px rgba(157,23,140,0.4);
+    }}
+    .hero-icon img {{ width: 100%; height: 100%; object-fit: contain; }}
+    .hero-title {{
+        font-size: 2.6rem; font-weight: 800; line-height: 1.15; margin: 0;
+        background: linear-gradient(135deg, {COLORS['pink_dark']}, {COLORS['purple_dark']});
+        -webkit-background-clip: text; background-clip: text; color: transparent;
+    }}
+    .hero-sub {{
+        display: flex; align-items: center; gap: 6px; margin-top: 6px;
+        font-size: 0.85rem; color: var(--muted);
+    }}
+    .status-pill {{
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 0.76rem; font-weight: 600; padding: 6px 14px; border-radius: 999px;
+        white-space: nowrap;
+    }}
+    .status-pill.live {{ background: #dcfce7; color: #15803d; }}
+    .status-pill.live .status-dot {{ box-shadow: 0 0 0 3px #15803d33; }}
+    .status-pill.demo {{ background: #fef3c7; color: #b45309; }}
+    .status-pill.demo .status-dot {{ box-shadow: 0 0 0 3px #b4530933; }}
+    .status-dot {{ width: 7px; height: 7px; border-radius: 50%; background: currentColor; }}
 
     /* Panel cards */
     .panel {{
@@ -214,11 +342,18 @@ def delta_html(delta_pct: float | None, bad_when_up: bool = True, note: str = "�
     )
 
 
-def kpi_card(label: str, value: str, sub_html: str, css_class: str):
+def kpi_card(label: str, value: str, sub_html: str, css_class: str, icon: str = "📊"):
+    # Long values (millions-range ฿ amounts, etc.) need a smaller font to stay
+    # on one line instead of wrapping inside the fixed-height card.
+    length = len(value)
+    size_class = "kpi-value-xlong" if length > 11 else "kpi-value-long" if length > 7 else ""
     st.markdown(f"""
     <div class="kpi-card {css_class}">
-        <div class="kpi-label">{label}</div>
-        <div class="kpi-value">{value}</div>
+        <div class="kpi-top">
+            <div class="kpi-label">{label}</div>
+            <div class="kpi-icon">{icon}</div>
+        </div>
+        <div class="kpi-value {size_class}">{value}</div>
         {sub_html}
     </div>
     """, unsafe_allow_html=True)
@@ -280,9 +415,9 @@ def main():
     df, is_demo = load_data()
 
     with st.sidebar:
-        st.markdown("""
+        st.markdown(f"""
         <div class="brand">
-            <div class="brand-badge">📦</div>
+            <div class="brand-badge"><img src="{_logo_data_uri()}" alt="PT Glory"/></div>
             <div>
                 <div class="brand-title">PT Glory</div>
                 <div class="brand-sub">Returns Dashboard 2569</div>
@@ -309,8 +444,24 @@ def main():
             icon="⚠️",
         )
 
-    st.markdown(f"### Dashboard สินค้าตีกลับ ปี 2569")
-    st.caption(f"อัปเดตล่าสุด: {datetime.now().strftime('%d %b %Y %H:%M')}")
+    status_class = "demo" if is_demo else "live"
+    status_label = "ข้อมูลตัวอย่าง (Demo)" if is_demo else "ข้อมูลจริง"
+    st.markdown(f"""
+    <div class="hero">
+        <div class="hero-left">
+            <div class="hero-icon"><img src="{_logo_data_uri()}" alt="PT Glory"/></div>
+            <div>
+                <p class="hero-title">Dashboard สินค้าตีกลับ ปี 2569</p>
+                <div class="hero-sub">
+                    <span>🕐 อัปเดตล่าสุด: {datetime.now().strftime('%d %b %Y %H:%M')}</span>
+                </div>
+            </div>
+        </div>
+        <div class="status-pill {status_class}">
+            <span class="status-dot"></span>{status_label}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     total_returns = len(df)
     total_value = df["product_price"].fillna(0).sum() if "product_price" in df else 0
@@ -348,22 +499,22 @@ def main():
     with c1:
         kpi_card(
             f"ยอดตีกลับ · {cur_month_label}", f"{cur_count:,}",
-            delta_html(count_delta_pct, bad_when_up=True), "kpi-pink",
+            delta_html(count_delta_pct, bad_when_up=True), "kpi-pink", icon="📦",
         )
     with c2:
         kpi_card(
             f"มูลค่าตีกลับ · {cur_month_label}", f"฿{cur_value:,.0f}",
-            delta_html(value_delta_pct, bad_when_up=True), "kpi-purple",
+            delta_html(value_delta_pct, bad_when_up=True), "kpi-purple", icon="💰",
         )
     with c3:
         kpi_card(
             "เฉลี่ยต่อเดือน", f"{avg_per_month:,.0f}",
-            f'<span class="kpi-delta">รายการ/เดือน จาก {n_months} เดือนที่เลือก</span>', "kpi-blue",
+            f'<span class="kpi-delta">รายการ/เดือน จาก {n_months} เดือนที่เลือก</span>', "kpi-blue", icon="📊",
         )
     with c4:
         kpi_card(
             "ช่องทางตีกลับสูงสุด", top_channel,
-            f'<span class="kpi-delta">{top_channel_share:.0f}% ของยอดตีกลับทั้งหมด</span>', "kpi-orange",
+            f'<span class="kpi-delta">{top_channel_share:.0f}% ของยอดตีกลับทั้งหมด</span>', "kpi-orange", icon="🎯",
         )
 
     st.write("")
