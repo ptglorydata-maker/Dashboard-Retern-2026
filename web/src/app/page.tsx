@@ -1,0 +1,387 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
+import { RawRecord, MONTH_LABELS, COLORS } from "@/lib/types";
+import { demoData, computeKpis, countBy, monthlyTrend } from "@/lib/aggregate";
+
+const MENU_ITEMS = ["ภาพรวม", "รายเดือน", "ช่องทางขาย", "สินค้า"];
+const DONUT_PALETTE = [COLORS.pink, COLORS.purple, COLORS.blue, COLORS.orange];
+
+function formatNumber(n: number) {
+  return n.toLocaleString("en-US", { maximumFractionDigits: 0 });
+}
+
+function formatBaht(n: number) {
+  return "฿" + formatNumber(n);
+}
+
+function DeltaPill({ pct, badWhenUp, note }: { pct: number | null; badWhenUp: boolean; note: string }) {
+  if (pct === null) {
+    return <span className="kpi-delta">ไม่มีข้อมูลเดือนก่อนหน้า</span>;
+  }
+  const isUp = pct >= 0;
+  const isBad = badWhenUp ? isUp : !isUp;
+  const arrowColor = isBad ? "#ffd2d2" : "#c9ffe0";
+  return (
+    <span className="kpi-delta">
+      <span className="font-bold" style={{ color: arrowColor }}>
+        {isUp ? "▲" : "▼"} {Math.abs(pct).toFixed(1)}%
+      </span>
+      &nbsp;{note}
+    </span>
+  );
+}
+
+function KpiCard({
+  label,
+  value,
+  icon,
+  gradientFrom,
+  gradientTo,
+  glow,
+  sub,
+}: {
+  label: string;
+  value: string;
+  icon: string;
+  gradientFrom: string;
+  gradientTo: string;
+  glow: string;
+  sub: React.ReactNode;
+}) {
+  const sizeClass = value.length > 11 ? "text-[1.3rem]" : value.length > 7 ? "text-[1.65rem]" : "text-[2.35rem]";
+  return (
+    <div
+      className="kpi-card"
+      style={{
+        backgroundImage: `linear-gradient(135deg, ${gradientFrom}, ${gradientTo})`,
+        boxShadow: `0 14px 28px -10px ${glow}`,
+      }}
+    >
+      <div className="kpi-blob-tr" />
+      <div className="kpi-blob-bl" />
+      <div className="flex items-start justify-between relative z-10">
+        <div className="text-[0.76rem] font-medium uppercase tracking-wide opacity-90">{label}</div>
+        <div className="kpi-icon">{icon}</div>
+      </div>
+      <div className={`relative z-10 font-bold whitespace-nowrap overflow-hidden ${sizeClass}`} style={{ textShadow: "0 2px 10px rgba(0,0,0,0.15)" }}>
+        {value}
+      </div>
+      <div className="relative z-10">{sub}</div>
+    </div>
+  );
+}
+
+export default function Home() {
+  const [allRecords, setAllRecords] = useState<RawRecord[] | null>(null);
+  const [isDemo, setIsDemo] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState<string>("");
+  const [selectedMonth, setSelectedMonth] = useState<string>("ทั้งหมด");
+
+  useEffect(() => {
+    fetch("/data/records.json")
+      .then((r) => {
+        if (!r.ok) throw new Error("no data file");
+        return r.json();
+      })
+      .then((data: RawRecord[]) => {
+        if (!Array.isArray(data) || data.length === 0) throw new Error("empty");
+        setAllRecords(data);
+        setIsDemo(false);
+      })
+      .catch(() => {
+        setAllRecords(demoData());
+        setIsDemo(true);
+      })
+      .finally(() => setUpdatedAt(new Date().toLocaleString("th-TH")));
+  }, []);
+
+  const allMonths = useMemo(
+    () => (allRecords ? Array.from(new Set(allRecords.map((r) => r.m))).sort() : []),
+    [allRecords]
+  );
+
+  const filtered = useMemo(() => {
+    if (!allRecords) return [];
+    return selectedMonth === "ทั้งหมด" ? allRecords : allRecords.filter((r) => r.m === selectedMonth);
+  }, [allRecords, selectedMonth]);
+
+  const kpis = useMemo(() => (allRecords ? computeKpis(allRecords, filtered) : null), [allRecords, filtered]);
+  const trend = useMemo(() => monthlyTrend(filtered), [filtered]);
+  const channelCounts = useMemo(() => countBy(filtered, (r) => r.c ?? "ไม่ระบุ").slice(0, 4), [filtered]);
+  const totalForShare = channelCounts.reduce((s, [, v]) => s + v, 0) || 1;
+
+  const recent = useMemo(
+    () =>
+      [...filtered]
+        .filter((r) => r.t)
+        .sort((a, b) => (b.t! > a.t! ? 1 : -1))
+        .slice(0, 6),
+    [filtered]
+  );
+
+  const tableRows = useMemo(
+    () =>
+      [...filtered]
+        .filter((r) => r.t)
+        .sort((a, b) => (b.t! > a.t! ? 1 : -1))
+        .slice(0, 20),
+    [filtered]
+  );
+
+  if (!allRecords || !kpis) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-gray-500">กำลังโหลดข้อมูล...</div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex">
+      {/* Sidebar */}
+      <aside
+        className="w-[280px] flex-shrink-0 p-6 text-white"
+        style={{ background: "linear-gradient(180deg, #2b1a4a 0%, #4a1f5c 55%, #6d2568 100%)" }}
+      >
+        <div className="flex items-center gap-3 pb-5">
+          <div className="w-10 h-10 rounded-[10px] bg-white flex items-center justify-center p-1 shadow-lg flex-shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-mark.png" alt="PT Glory" className="w-full h-full object-contain" />
+          </div>
+          <div>
+            <div className="font-bold text-[1.05rem]">PT Glory</div>
+            <div className="text-xs text-[#cbb8ee]">Returns Dashboard 2569</div>
+          </div>
+        </div>
+        <nav className="flex flex-col gap-1">
+          {MENU_ITEMS.map((item, i) => (
+            <div
+              key={item}
+              className={`px-3 py-2 rounded-lg text-sm flex items-center gap-2 ${i === 0 ? "bg-white/10" : ""}`}
+            >
+              <span
+                className={`w-2 h-2 rounded-full flex-shrink-0 ${i === 0 ? "" : "border border-white/60"}`}
+                style={i === 0 ? { background: COLORS.pink } : {}}
+              />
+              {item}
+            </div>
+          ))}
+        </nav>
+        <hr className="my-5 border-white/15" />
+        <div className="text-sm mb-2 opacity-90">เลือกเดือน</div>
+        <select
+          value={selectedMonth}
+          onChange={(e) => setSelectedMonth(e.target.value)}
+          className="w-full rounded-lg bg-white/10 border border-white/25 px-3 py-2 text-sm text-white [&>option]:text-black"
+        >
+          <option value="ทั้งหมด">ทั้งหมด</option>
+          {allMonths.map((m) => (
+            <option key={m} value={m}>
+              {MONTH_LABELS[m] ?? m}
+            </option>
+          ))}
+        </select>
+      </aside>
+
+      {/* Main */}
+      <main className="flex-1 p-8 max-w-[1400px]">
+        {isDemo && (
+          <div className="mb-5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-3">
+            ⚠️ ยังไม่พบไฟล์ข้อมูล (<code>web/public/data/records.json</code>) — แสดงผลด้วย
+            <b> ข้อมูลตัวอย่าง (demo)</b> เพื่อพรีวิว UI เท่านั้น รัน{" "}
+            <code>pipeline/aggregate_for_web.py</code> แล้ว deploy ใหม่เพื่อดูข้อมูลจริง
+          </div>
+        )}
+
+        {/* Hero */}
+        <div className="flex items-center justify-between gap-4 flex-wrap mb-6">
+          <div className="flex items-center gap-4">
+            <div
+              className="w-[68px] h-[68px] rounded-[18px] bg-white p-2 flex items-center justify-center flex-shrink-0"
+              style={{ boxShadow: "0 10px 22px -8px rgba(157,23,140,0.4)" }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo-mark.png" alt="PT Glory" className="w-full h-full object-contain" />
+            </div>
+            <div>
+              <p
+                className="text-[2.6rem] font-extrabold leading-[1.15] m-0 bg-clip-text text-transparent"
+                style={{ backgroundImage: `linear-gradient(135deg, ${COLORS.pinkDark}, ${COLORS.purpleDark})` }}
+              >
+                Dashboard สินค้าตีกลับ ปี 2569
+              </p>
+              <div className="flex items-center gap-1.5 mt-1.5 text-[0.85rem] text-gray-500">
+                <span>🕐 อัปเดตล่าสุด: {updatedAt}</span>
+              </div>
+            </div>
+          </div>
+          <div
+            className={`inline-flex items-center gap-1.5 text-[0.76rem] font-semibold px-3.5 py-1.5 rounded-full whitespace-nowrap ${
+              isDemo ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"
+            }`}
+          >
+            <span className="w-[7px] h-[7px] rounded-full" style={{ background: "currentColor" }} />
+            {isDemo ? "ข้อมูลตัวอย่าง (Demo)" : "ข้อมูลจริง"}
+          </div>
+        </div>
+
+        {/* KPI cards */}
+        <div className="grid grid-cols-4 gap-5">
+          <KpiCard
+            label={`ยอดตีกลับ · ${kpis.curMonthLabel}`}
+            value={formatNumber(kpis.curCount)}
+            icon="📦"
+            gradientFrom={COLORS.pink}
+            gradientTo={COLORS.pinkDark}
+            glow="rgba(219,39,119,0.55)"
+            sub={<DeltaPill pct={kpis.countDeltaPct} badWhenUp note="จากเดือนก่อน" />}
+          />
+          <KpiCard
+            label={`มูลค่าตีกลับ · ${kpis.curMonthLabel}`}
+            value={formatBaht(kpis.curValue)}
+            icon="💰"
+            gradientFrom={COLORS.purple}
+            gradientTo={COLORS.purpleDark}
+            glow="rgba(124,58,237,0.55)"
+            sub={<DeltaPill pct={kpis.valueDeltaPct} badWhenUp note="จากเดือนก่อน" />}
+          />
+          <KpiCard
+            label="เฉลี่ยต่อเดือน"
+            value={formatNumber(Math.round(kpis.avgPerMonth))}
+            icon="📊"
+            gradientFrom={COLORS.blue}
+            gradientTo={COLORS.blueDark}
+            glow="rgba(37,99,235,0.55)"
+            sub={<span className="kpi-delta">รายการ/เดือน จาก {kpis.nMonths} เดือนที่เลือก</span>}
+          />
+          <KpiCard
+            label="ช่องทางตีกลับสูงสุด"
+            value={kpis.topChannel}
+            icon="🎯"
+            gradientFrom={COLORS.orange}
+            gradientTo={COLORS.orangeDark}
+            glow="rgba(234,88,12,0.55)"
+            sub={<span className="kpi-delta">{kpis.topChannelSharePct.toFixed(0)}% ของยอดตีกลับทั้งหมด</span>}
+          />
+        </div>
+
+        {/* Charts */}
+        <div className="grid grid-cols-3 gap-5 mt-5">
+          <div className="col-span-2 panel">
+            <h4 className="font-semibold text-[1rem] m-0">แนวโน้มยอดตีกลับรายเดือน</h4>
+            <p className="text-[0.78rem] text-gray-500 mt-0.5 mb-2">จำนวนรายการตีกลับต่อเดือน</p>
+            <div style={{ width: "100%", height: 280 }}>
+              <ResponsiveContainer>
+                <AreaChart data={trend}>
+                  <defs>
+                    <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={COLORS.pink} stopOpacity={0.3} />
+                      <stop offset="100%" stopColor={COLORS.pink} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f1f6" />
+                  <XAxis dataKey="label" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(v) => [`${formatNumber(Number(v))} รายการ`, ""]} />
+                  <Area type="monotone" dataKey="count" stroke={COLORS.pink} strokeWidth={3} fill="url(#trendFill)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+          <div className="panel">
+            <h4 className="font-semibold text-[1rem] m-0">สัดส่วนช่องทางตีกลับ</h4>
+            <p className="text-[0.78rem] text-gray-500 mt-0.5 mb-2">Top 4 ช่องทางขาย</p>
+            <div style={{ width: "100%", height: 220 }}>
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie data={channelCounts.map(([name, value]) => ({ name, value }))} dataKey="value" nameKey="name" innerRadius="68%" outerRadius="100%">
+                    {channelCounts.map((_, i) => (
+                      <Cell key={i} fill={DONUT_PALETTE[i % DONUT_PALETTE.length]} />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex flex-col gap-1.5 mt-1">
+              {channelCounts.map(([name, value], i) => (
+                <div key={name} className="flex justify-between text-[0.8rem]">
+                  <span className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full inline-block" style={{ background: DONUT_PALETTE[i % DONUT_PALETTE.length] }} />
+                    {name}
+                  </span>
+                  <b>{((value / totalForShare) * 100).toFixed(0)}%</b>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Activity + table */}
+        <div className="grid grid-cols-3 gap-5 mt-5">
+          <div className="panel">
+            <h4 className="font-semibold text-[1rem] m-0">กิจกรรมล่าสุด</h4>
+            <p className="text-[0.78rem] text-gray-500 mt-0.5 mb-2">รายการตีกลับที่เพิ่มเข้ามาล่าสุด</p>
+            {recent.map((r, i) => (
+              <div key={i} className="flex gap-3 items-start py-2 border-b border-gray-100 last:border-0">
+                <span
+                  className="w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0"
+                  style={{ background: DONUT_PALETTE[i % DONUT_PALETTE.length] }}
+                />
+                <div className="flex-1">
+                  <div className="text-[0.85rem] font-semibold">{r.n ?? "สินค้า"}</div>
+                  <div className="text-[0.75rem] text-gray-500">
+                    {r.c ?? "-"} · {r.p ?? "-"}
+                  </div>
+                </div>
+                <div className="text-[0.7rem] text-gray-500 whitespace-nowrap">
+                  {r.t ? new Date(r.t).toLocaleDateString("th-TH", { day: "2-digit", month: "short" }) : "-"}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="col-span-2 panel">
+            <h4 className="font-semibold text-[1rem] m-0">รายการตีกลับ</h4>
+            <p className="text-[0.78rem] text-gray-500 mt-0.5 mb-2">ตารางรายการล่าสุด</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b border-gray-200">
+                    <th className="py-2 pr-3 font-medium">เลขออเดอร์</th>
+                    <th className="py-2 pr-3 font-medium">ช่องทาง</th>
+                    <th className="py-2 pr-3 font-medium">จังหวัด</th>
+                    <th className="py-2 pr-3 font-medium">สินค้า</th>
+                    <th className="py-2 pr-3 font-medium text-right">ราคา (บาท)</th>
+                    <th className="py-2 font-medium">วันที่สั่งซื้อ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableRows.map((r, i) => (
+                    <tr key={i} className="border-b border-gray-100 last:border-0">
+                      <td className="py-2 pr-3">{r.id ?? "-"}</td>
+                      <td className="py-2 pr-3">{r.c ?? "-"}</td>
+                      <td className="py-2 pr-3">{r.p ?? "-"}</td>
+                      <td className="py-2 pr-3">{r.n ?? "-"}</td>
+                      <td className="py-2 pr-3 text-right">{r.v != null ? formatNumber(r.v) : "-"}</td>
+                      <td className="py-2">{r.t ? new Date(r.t).toLocaleDateString("th-TH") : "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
