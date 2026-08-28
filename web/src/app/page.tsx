@@ -27,7 +27,6 @@ import {
   monthlyTrend,
   monthlySummary,
   channelBreakdown,
-  topProducts,
   topByDimension,
   provinceBreakdown,
   pickTotals,
@@ -131,6 +130,10 @@ export default function Home() {
   const [mapChannel, setMapChannel] = useState<string>("ทั้งหมด");
   const [mapSort, setMapSort] = useState<"มากสุด" | "น้อยสุด">("มากสุด");
   const [kpiModal, setKpiModal] = useState<"count" | "value" | "avg" | "channel" | null>(null);
+  const [compareModalOpen, setCompareModalOpen] = useState(false);
+  const [productSortDir, setProductSortDir] = useState<"desc" | "asc">("desc");
+  const [adminSortDir, setAdminSortDir] = useState<"desc" | "asc">("desc");
+  const [skuSortDir, setSkuSortDir] = useState<"desc" | "asc">("desc");
   const { data: session } = useSession();
   const [visitStats, setVisitStats] = useState<{
     monthly: { label: string; count: number }[];
@@ -197,7 +200,6 @@ export default function Home() {
 
   const monthlyRows = useMemo(() => (allRecords ? monthlySummary(allRecords) : []), [allRecords]);
   const allChannels = useMemo(() => channelBreakdown(filtered), [filtered]);
-  const products = useMemo(() => topProducts(filtered), [filtered]);
 
   const mapChannels = useMemo(
     () => (allRecords ? Array.from(new Set(allRecords.map((r) => r.c).filter((c): c is string => !!c))).sort() : []),
@@ -211,7 +213,10 @@ export default function Home() {
     const rows = provinceBreakdown(mapRecords);
     return mapSort === "มากสุด" ? rows : [...rows].reverse();
   }, [mapRecords, mapSort]);
-  const compareRows = useMemo(() => topByDimension(filtered, compareDim, 8), [filtered, compareDim]);
+  const compareRows = useMemo(() => topByDimension(filtered, compareDim, 10), [filtered, compareDim]);
+  const compareAllRows = useMemo(() => topByDimension(filtered, compareDim, Infinity), [filtered, compareDim]);
+  const productsAll = useMemo(() => topByDimension(filtered, "n", Infinity, productSortDir), [filtered, productSortDir]);
+  const productsTop = useMemo(() => productsAll.slice(0, 15), [productsAll]);
 
   const rateCards = useMemo(
     () => (orderTotals ? computeRateCards(pickTotals(orderTotals, selectedMonth)) : null),
@@ -222,12 +227,12 @@ export default function Home() {
     [orderTotals]
   );
   const adminRanking = useMemo(
-    () => (orderTotals ? rateRanking(orderTotals.byAdmin, 300, 10) : []),
-    [orderTotals]
+    () => (orderTotals ? rateRanking(orderTotals.byAdmin, 300, 10, adminSortDir) : []),
+    [orderTotals, adminSortDir]
   );
   const skuRanking = useMemo(
-    () => (orderTotals ? rateRanking(orderTotals.bySku, 100, 10) : []),
-    [orderTotals]
+    () => (orderTotals ? rateRanking(orderTotals.bySku, 100, 10, skuSortDir) : []),
+    [orderTotals, skuSortDir]
   );
   const rateTrend = useMemo(() => (orderTotals ? monthlyRateTrend(orderTotals.byMonth) : []), [orderTotals]);
 
@@ -502,6 +507,13 @@ export default function Home() {
                 ))}
               </select>
             </div>
+            <button
+              type="button"
+              onClick={() => setCompareModalOpen(true)}
+              className="text-[0.7rem] text-white/50 hover:text-white underline mb-1"
+            >
+              ดูรายการทั้งหมด ({DIMENSION_LABELS[compareDim]}) →
+            </button>
             <div style={{ width: "100%", height: 280 }}>
               <ResponsiveContainer>
                 <BarChart data={compareRows} layout="vertical" margin={{ left: 4, right: 40, top: 4, bottom: 4 }}>
@@ -557,18 +569,18 @@ export default function Home() {
                 </select>
               </div>
             </div>
-            <div className="flex gap-4 mt-1">
-              <div className="flex-1 flex justify-center">
+            <div className="flex gap-3 mt-1">
+              <div className="flex-1 flex justify-center min-w-0">
                 <ThailandMap data={provinceRows} />
               </div>
-              <div className="w-56 flex-shrink-0 overflow-y-auto" style={{ maxHeight: 480 }}>
+              <div className="w-[260px] flex-shrink-0 overflow-y-auto pr-1" style={{ maxHeight: 480 }}>
                 {provinceRows.map((row, i) => (
-                  <div key={row.geo} className="flex items-center justify-between text-[0.8rem] py-1.5 border-b border-white/5 last:border-0">
+                  <div key={row.geo} className="flex items-center justify-between gap-2 text-[0.8rem] py-1.5 border-b border-white/5 last:border-0">
                     <span className="flex items-center gap-2 min-w-0">
                       <span className="text-white/35 w-5 flex-shrink-0">{i + 1}</span>
                       <span className="truncate">{row.name}</span>
                     </span>
-                    <span className="font-semibold flex-shrink-0 ml-2">{formatNumber(row.count)}</span>
+                    <span className="font-semibold flex-shrink-0 text-right">{formatNumber(row.count)}</span>
                   </div>
                 ))}
                 {provinceRows.length === 0 && <p className="text-xs text-white/35 mt-4">ไม่มีข้อมูล</p>}
@@ -623,7 +635,7 @@ export default function Home() {
               <p className="text-[0.78rem] text-white/50 mt-0.5 mb-2">
                 ทุกช่องทาง ({selectedMonth === "ทั้งหมด" ? "ทั้งหมด" : MONTH_LABELS[selectedMonth] ?? selectedMonth})
               </p>
-              <div style={{ width: "100%", height: 240 }}>
+              <div style={{ width: "100%", height: 200 }}>
                 <ResponsiveContainer>
                   <PieChart>
                     <Pie data={allChannels} dataKey="count" nameKey="name" innerRadius="60%" outerRadius="95%">
@@ -631,8 +643,34 @@ export default function Home() {
                         <Cell key={i} fill={DONUT_PALETTE[i % DONUT_PALETTE.length]} />
                       ))}
                     </Pie>
+                    <Tooltip formatter={(v, name) => [`${formatNumber(Number(v))} รายการ`, String(name)]} {...TOOLTIP_STYLE} />
                   </PieChart>
                 </ResponsiveContainer>
+              </div>
+              <div className="flex flex-col gap-2 mt-2">
+                {allChannels.map((row, i) => {
+                  const color = DONUT_PALETTE[i % DONUT_PALETTE.length];
+                  return (
+                    <div key={row.name} className="text-[0.78rem]">
+                      <div className="flex justify-between mb-1">
+                        <span className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full inline-block" style={{ background: color }} />
+                          {row.name}
+                        </span>
+                        <span>
+                          <b>{row.sharePct.toFixed(1)}%</b>
+                          <span className="text-white/40 ml-1.5">{formatNumber(row.count)} รายการ</span>
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-white/8 overflow-hidden">
+                        <div
+                          className="h-full rounded-full"
+                          style={{ width: `${row.sharePct}%`, background: color, boxShadow: `0 0 8px -1px ${color}aa` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
             <div className="col-span-2 panel">
@@ -669,30 +707,70 @@ export default function Home() {
 
         {/* Product tab */}
         {activeMenu === "สินค้า" && (
-          <div className="panel mt-5">
-            <h4 className="font-semibold text-[1rem] m-0">สินค้าที่ถูกตีกลับมากที่สุด</h4>
-            <p className="text-[0.78rem] text-white/50 mt-0.5 mb-3">Top {products.length} สินค้า เรียงตามยอดตีกลับ</p>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-white/50 border-b border-white/10">
-                    <th className="py-2 pr-3 font-medium w-10">#</th>
-                    <th className="py-2 pr-3 font-medium">สินค้า</th>
-                    <th className="py-2 pr-3 font-medium text-right">ยอดตีกลับ</th>
-                    <th className="py-2 font-medium text-right">มูลค่า (บาท)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {products.map((row, i) => (
-                    <tr key={row.name} className="border-b border-white/5 last:border-0">
-                      <td className="py-2 pr-3 text-white/35">{i + 1}</td>
-                      <td className="py-2 pr-3">{row.name}</td>
-                      <td className="py-2 pr-3 text-right">{formatNumber(row.count)}</td>
-                      <td className="py-2 text-right">{formatBaht(row.value)}</td>
+          <div className="grid grid-cols-3 gap-5 mt-5">
+            <div className="panel">
+              <h4 className="font-semibold text-[1rem] m-0">Top 15 สินค้าที่ถูกตีกลับ</h4>
+              <p className="text-[0.78rem] text-white/50 mt-0.5 mb-2">
+                เรียง{productSortDir === "desc" ? "มากไปน้อย" : "น้อยไปมาก"}
+              </p>
+              <div style={{ width: "100%", height: 460 }}>
+                <ResponsiveContainer>
+                  <BarChart data={productsTop} layout="vertical" margin={{ left: 4, right: 40, top: 4, bottom: 4 }}>
+                    <XAxis type="number" hide />
+                    <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 10, fill: "#94a3b8" }} tickLine={false} axisLine={false} />
+                    <Tooltip
+                      formatter={(v, key) =>
+                        key === "count" ? [`${formatNumber(Number(v))} รายการ`, "ยอดตีกลับ"] : [formatBaht(Number(v)), "มูลค่า"]
+                      }
+                      {...TOOLTIP_STYLE}
+                    />
+                    <Bar dataKey="count" radius={[0, 6, 6, 0]}>
+                      {productsTop.map((_, i) => (
+                        <Cell key={i} fill={DONUT_PALETTE[i % DONUT_PALETTE.length]} />
+                      ))}
+                      <LabelList dataKey="value" position="right" formatter={(v) => formatBaht(Number(v))} style={{ fontSize: 9, fill: "#8a8fa3" }} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            <div className="col-span-2 panel">
+              <div className="flex items-start justify-between gap-2 flex-wrap">
+                <div>
+                  <h4 className="font-semibold text-[1rem] m-0">รายการสินค้าทั้งหมด</h4>
+                  <p className="text-[0.78rem] text-white/50 mt-0.5 mb-2">ทั้งหมด {productsAll.length} รายการ</p>
+                </div>
+                <select
+                  value={productSortDir}
+                  onChange={(e) => setProductSortDir(e.target.value as "desc" | "asc")}
+                  className="text-xs border border-white/10 bg-white/5 text-white/80 rounded-lg px-2 py-1.5 flex-shrink-0"
+                >
+                  <option value="desc">ยอดตีกลับ: มากไปน้อย</option>
+                  <option value="asc">ยอดตีกลับ: น้อยไปมาก</option>
+                </select>
+              </div>
+              <div className="overflow-y-auto overflow-x-auto" style={{ maxHeight: 460 }}>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-white/50 border-b border-white/10">
+                      <th className="py-2 pr-3 font-medium w-10">#</th>
+                      <th className="py-2 pr-3 font-medium">สินค้า</th>
+                      <th className="py-2 pr-3 font-medium text-right">ยอดตีกลับ</th>
+                      <th className="py-2 font-medium text-right">มูลค่า (บาท)</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {productsAll.map((row, i) => (
+                      <tr key={row.name} className="border-b border-white/5 last:border-0">
+                        <td className="py-2 pr-3 text-white/35">{i + 1}</td>
+                        <td className="py-2 pr-3">{row.name}</td>
+                        <td className="py-2 pr-3 text-right">{formatNumber(row.count)}</td>
+                        <td className="py-2 text-right">{formatBaht(row.value)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
@@ -776,8 +854,20 @@ export default function Home() {
 
                 <div className="grid grid-cols-2 gap-5 mt-5">
                   <div className="panel">
-                    <h4 className="font-semibold text-[1rem] m-0">Sales Admin Comparison</h4>
-                    <p className="text-[0.78rem] text-white/50 mt-0.5 mb-2">Top 10 แอดมินที่มีอัตราตีกลับสูงสุด (≥300 ออเดอร์)</p>
+                    <div className="flex items-start justify-between gap-2 flex-wrap">
+                      <div>
+                        <h4 className="font-semibold text-[1rem] m-0">Sales Admin Comparison</h4>
+                        <p className="text-[0.78rem] text-white/50 mt-0.5 mb-2">Top 10 แอดมิน (≥300 ออเดอร์)</p>
+                      </div>
+                      <select
+                        value={adminSortDir}
+                        onChange={(e) => setAdminSortDir(e.target.value as "desc" | "asc")}
+                        className="text-xs border border-white/10 bg-white/5 text-white/80 rounded-lg px-2 py-1.5 flex-shrink-0"
+                      >
+                        <option value="desc">อัตราตีกลับ: มากไปน้อย</option>
+                        <option value="asc">อัตราตีกลับ: น้อยไปมาก</option>
+                      </select>
+                    </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
@@ -809,8 +899,20 @@ export default function Home() {
                     </div>
                   </div>
                   <div className="panel">
-                    <h4 className="font-semibold text-[1rem] m-0">Return Rate by SKU</h4>
-                    <p className="text-[0.78rem] text-white/50 mt-0.5 mb-2">Top 10 สินค้าที่มีอัตราตีกลับสูงสุด (≥100 ออเดอร์)</p>
+                    <div className="flex items-start justify-between gap-2 flex-wrap">
+                      <div>
+                        <h4 className="font-semibold text-[1rem] m-0">Return Rate by SKU</h4>
+                        <p className="text-[0.78rem] text-white/50 mt-0.5 mb-2">Top 10 สินค้า (≥100 ออเดอร์)</p>
+                      </div>
+                      <select
+                        value={skuSortDir}
+                        onChange={(e) => setSkuSortDir(e.target.value as "desc" | "asc")}
+                        className="text-xs border border-white/10 bg-white/5 text-white/80 rounded-lg px-2 py-1.5 flex-shrink-0"
+                      >
+                        <option value="desc">อัตราตีกลับ: มากไปน้อย</option>
+                        <option value="asc">อัตราตีกลับ: น้อยไปมาก</option>
+                      </select>
+                    </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
@@ -931,6 +1033,52 @@ export default function Home() {
                 </tbody>
               </table>
             )}
+          </div>
+        </div>
+      )}
+
+      {compareModalOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+          onClick={() => setCompareModalOpen(false)}
+        >
+          <div
+            className="bg-[#121a2e] border border-white/10 rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="font-semibold text-lg m-0">รายการทั้งหมด: {DIMENSION_LABELS[compareDim]}</h3>
+                <p className="text-xs text-white/50 mt-1">ทั้งหมด {compareAllRows.length} รายการ เรียงตามยอดตีกลับมากไปน้อย</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCompareModalOpen(false)}
+                className="text-white/35 hover:text-white text-xl leading-none px-2"
+              >
+                ×
+              </button>
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-white/50 border-b border-white/10">
+                  <th className="py-2 pr-3 font-medium w-10">#</th>
+                  <th className="py-2 pr-3 font-medium">{DIMENSION_LABELS[compareDim]}</th>
+                  <th className="py-2 pr-3 font-medium text-right">ยอดตีกลับ</th>
+                  <th className="py-2 font-medium text-right">มูลค่า (บาท)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {compareAllRows.map((row, i) => (
+                  <tr key={row.name} className="border-b border-white/5 last:border-0">
+                    <td className="py-2 pr-3 text-white/35">{i + 1}</td>
+                    <td className="py-2 pr-3">{row.name}</td>
+                    <td className="py-2 pr-3 text-right">{formatNumber(row.count)}</td>
+                    <td className="py-2 text-right">{formatBaht(row.value)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
