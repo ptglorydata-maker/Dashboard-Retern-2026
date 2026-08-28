@@ -10,6 +10,41 @@ export interface RawRecord {
   t: string | null; // order_time, ISO
 }
 
+// Written by pipeline/aggregate_for_web.py's dim_breakdown() — all-orders
+// (not just returned) counts for a group, used for rate-based metrics
+// (Return Rate, COD Rejection Rate, Courier SLA, Sales Admin comparison,
+// Return Rate by SKU) that records.json alone can't answer.
+export interface DimBreakdownRow {
+  key: string;
+  label: string;
+  orders: number;
+  value: number;
+  returned: number;
+  returned_value: number;
+  cod_orders: number;
+  cod_returned: number;
+}
+
+export interface OrderTotalsOverall {
+  orders: number;
+  value: number;
+  returned: number;
+  returned_value: number;
+  cod_orders: number;
+  cod_value: number;
+  cod_returned: number;
+  cod_returned_value: number;
+}
+
+export interface OrderTotals {
+  overall: OrderTotalsOverall;
+  byMonth: DimBreakdownRow[];
+  byChannel: DimBreakdownRow[];
+  byCourier: DimBreakdownRow[];
+  byAdmin: DimBreakdownRow[];
+  bySku: DimBreakdownRow[];
+}
+
 export const MONTH_LABELS: Record<string, string> = {
   "2026-01": "ม.ค.69",
   "2026-02": "ก.พ.69",

@@ -6,6 +6,8 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -17,7 +19,7 @@ import {
   Bar,
   LabelList,
 } from "recharts";
-import { RawRecord, MONTH_LABELS, COLORS } from "@/lib/types";
+import { RawRecord, MONTH_LABELS, COLORS, OrderTotals } from "@/lib/types";
 import {
   demoData,
   computeKpis,
@@ -28,12 +30,16 @@ import {
   topProducts,
   topByDimension,
   provinceBreakdown,
+  pickTotals,
+  computeRateCards,
+  rateRanking,
+  monthlyRateTrend,
   DIMENSION_LABELS,
   Dimension,
 } from "@/lib/aggregate";
 import { ThailandMap } from "@/components/ThailandMap";
 
-const MENU_ITEMS = ["ภาพรวม", "รายเดือน", "ช่องทางขาย", "สินค้า"];
+const MENU_ITEMS = ["ภาพรวม", "รายเดือน", "ช่องทางขาย", "สินค้า", "COD & ต้นทุน"];
 const DONUT_PALETTE = [COLORS.pink, COLORS.purple, COLORS.blue, COLORS.orange];
 
 function formatNumber(n: number) {
@@ -42,6 +48,10 @@ function formatNumber(n: number) {
 
 function formatBaht(n: number) {
   return "฿" + formatNumber(n);
+}
+
+function formatPct(n: number) {
+  return `${n.toFixed(1)}%`;
 }
 
 function DeltaPill({ pct, badWhenUp, note }: { pct: number | null; badWhenUp: boolean; note: string }) {
@@ -108,6 +118,7 @@ function KpiCard({
 
 export default function Home() {
   const [allRecords, setAllRecords] = useState<RawRecord[] | null>(null);
+  const [orderTotals, setOrderTotals] = useState<OrderTotals | null>(null);
   const [isDemo, setIsDemo] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<string>("ทั้งหมด");
@@ -155,6 +166,11 @@ export default function Home() {
         setIsDemo(true);
       })
       .finally(() => setUpdatedAt(new Date().toLocaleString("th-TH")));
+
+    fetch("/data/order_totals.json")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: OrderTotals | null) => setOrderTotals(data))
+      .catch(() => setOrderTotals(null));
   }, []);
 
   const allMonths = useMemo(
@@ -192,6 +208,24 @@ export default function Home() {
     return mapSort === "มากสุด" ? rows : [...rows].reverse();
   }, [mapRecords, mapSort]);
   const compareRows = useMemo(() => topByDimension(filtered, compareDim, 8), [filtered, compareDim]);
+
+  const rateCards = useMemo(
+    () => (orderTotals ? computeRateCards(pickTotals(orderTotals, selectedMonth)) : null),
+    [orderTotals, selectedMonth]
+  );
+  const courierRanking = useMemo(
+    () => (orderTotals ? rateRanking(orderTotals.byCourier, 200, 10) : []),
+    [orderTotals]
+  );
+  const adminRanking = useMemo(
+    () => (orderTotals ? rateRanking(orderTotals.byAdmin, 300, 10) : []),
+    [orderTotals]
+  );
+  const skuRanking = useMemo(
+    () => (orderTotals ? rateRanking(orderTotals.bySku, 100, 10) : []),
+    [orderTotals]
+  );
+  const rateTrend = useMemo(() => (orderTotals ? monthlyRateTrend(orderTotals.byMonth) : []), [orderTotals]);
 
   if (!allRecords || !kpis) {
     return (
@@ -652,6 +686,155 @@ export default function Home() {
               </table>
             </div>
           </div>
+        )}
+
+        {/* COD & Cost tab */}
+        {activeMenu === "COD & ต้นทุน" && (
+          <>
+            {!orderTotals ? (
+              <div className="panel mt-5 text-sm text-gray-500">กำลังโหลดข้อมูล...</div>
+            ) : (
+              <>
+                <div className="grid grid-cols-3 gap-5 mt-5">
+                  <div className="panel">
+                    <div className="text-[0.78rem] text-gray-500">Return Rate (อัตราตีกลับ)</div>
+                    <div className="text-[1.7rem] font-bold mt-1" style={{ color: COLORS.pinkDark }}>
+                      {formatPct(rateCards!.returnRateUnits)}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      ตามจำนวนออเดอร์ · {formatPct(rateCards!.returnRateValue)} ตามมูลค่า
+                    </div>
+                  </div>
+                  <div className="panel">
+                    <div className="text-[0.78rem] text-gray-500">COD Rejection Rate</div>
+                    <div className="text-[1.7rem] font-bold mt-1" style={{ color: COLORS.orangeDark }}>
+                      {formatPct(rateCards!.codRejectionRate)}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      จากออเดอร์เก็บเงินปลายทาง {formatNumber(rateCards!.codOrders)} รายการ
+                    </div>
+                  </div>
+                  <div className="panel">
+                    <div className="text-[0.78rem] text-gray-500">Financial Loss (มูลค่าสินค้าที่ตีกลับ)</div>
+                    <div className="text-[1.7rem] font-bold mt-1" style={{ color: COLORS.purpleDark }}>
+                      {formatBaht(rateCards!.financialLoss)}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">เฉพาะมูลค่าสินค้า ยังไม่รวมค่าขนส่ง/โฆษณาที่เสียเปล่า</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-5 mt-5">
+                  <div className="panel">
+                    <h4 className="font-semibold text-[1rem] m-0">แนวโน้มอัตราตีกลับรายเดือน</h4>
+                    <p className="text-[0.78rem] text-gray-500 mt-0.5 mb-2">% ตีกลับ เทียบยอดสั่งซื้อทั้งหมดในเดือนนั้น</p>
+                    <div style={{ width: "100%", height: 260 }}>
+                      <ResponsiveContainer>
+                        <LineChart data={rateTrend}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f1f6" />
+                          <XAxis dataKey="label" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                          <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} unit="%" />
+                          <Tooltip formatter={(v) => [formatPct(Number(v)), "อัตราตีกลับ"]} />
+                          <Line type="monotone" dataKey="returnRatePct" stroke={COLORS.pinkDark} strokeWidth={3} dot={{ r: 3 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                  <div className="panel">
+                    <h4 className="font-semibold text-[1rem] m-0">Courier SLA Performance</h4>
+                    <p className="text-[0.78rem] text-gray-500 mt-0.5 mb-2">อัตราตีกลับแยกตามบริษัทขนส่ง (≥200 ออเดอร์)</p>
+                    <div style={{ width: "100%", height: 260 }}>
+                      <ResponsiveContainer>
+                        <BarChart data={courierRanking} layout="vertical" margin={{ left: 4, right: 40, top: 4, bottom: 4 }}>
+                          <XAxis type="number" hide />
+                          <YAxis type="category" dataKey="label" width={110} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                          <Tooltip
+                            formatter={(v, key) =>
+                              key === "returnRatePct" ? [formatPct(Number(v)), "อัตราตีกลับ"] : [formatNumber(Number(v)), "ออเดอร์"]
+                            }
+                          />
+                          <Bar dataKey="returnRatePct" radius={[0, 6, 6, 0]}>
+                            {courierRanking.map((_, i) => (
+                              <Cell key={i} fill={DONUT_PALETTE[i % DONUT_PALETTE.length]} />
+                            ))}
+                            <LabelList dataKey="returnRatePct" position="right" formatter={(v) => formatPct(Number(v))} style={{ fontSize: 10, fill: "#8a8fa3" }} />
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-5 mt-5">
+                  <div className="panel">
+                    <h4 className="font-semibold text-[1rem] m-0">Sales Admin Comparison</h4>
+                    <p className="text-[0.78rem] text-gray-500 mt-0.5 mb-2">Top 10 แอดมินที่มีอัตราตีกลับสูงสุด (≥300 ออเดอร์)</p>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-gray-500 border-b border-gray-200">
+                            <th className="py-2 pr-3 font-medium">แอดมิน</th>
+                            <th className="py-2 pr-3 font-medium text-right">ออเดอร์</th>
+                            <th className="py-2 font-medium text-right">อัตราตีกลับ</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {adminRanking.map((row) => (
+                            <tr key={row.key} className="border-b border-gray-100 last:border-0">
+                              <td className="py-2 pr-3">{row.label}</td>
+                              <td className="py-2 pr-3 text-right">{formatNumber(row.orders)}</td>
+                              <td className="py-2 text-right font-semibold" style={{ color: COLORS.orangeDark }}>
+                                {formatPct(row.returnRatePct)}
+                              </td>
+                            </tr>
+                          ))}
+                          {adminRanking.length === 0 && (
+                            <tr>
+                              <td colSpan={3} className="py-4 text-center text-gray-400 text-xs">
+                                ไม่มีข้อมูลเพียงพอ
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <div className="panel">
+                    <h4 className="font-semibold text-[1rem] m-0">Return Rate by SKU</h4>
+                    <p className="text-[0.78rem] text-gray-500 mt-0.5 mb-2">Top 10 สินค้าที่มีอัตราตีกลับสูงสุด (≥100 ออเดอร์)</p>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-gray-500 border-b border-gray-200">
+                            <th className="py-2 pr-3 font-medium">สินค้า</th>
+                            <th className="py-2 pr-3 font-medium text-right">ออเดอร์</th>
+                            <th className="py-2 font-medium text-right">อัตราตีกลับ</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {skuRanking.map((row) => (
+                            <tr key={row.key} className="border-b border-gray-100 last:border-0">
+                              <td className="py-2 pr-3">{row.label}</td>
+                              <td className="py-2 pr-3 text-right">{formatNumber(row.orders)}</td>
+                              <td className="py-2 text-right font-semibold" style={{ color: COLORS.orangeDark }}>
+                                {formatPct(row.returnRatePct)}
+                              </td>
+                            </tr>
+                          ))}
+                          {skuRanking.length === 0 && (
+                            <tr>
+                              <td colSpan={3} className="py-4 text-center text-gray-400 text-xs">
+                                ไม่มีข้อมูลเพียงพอ
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </>
         )}
 
       </main>
