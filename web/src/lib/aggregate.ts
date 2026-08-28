@@ -35,6 +35,7 @@ export function demoData(): RawRecord[] {
 export interface Kpis {
   curMonth: string | null;
   curMonthLabel: string;
+  isTotal: boolean;
   curCount: number;
   curValue: number;
   countDeltaPct: number | null;
@@ -45,21 +46,43 @@ export interface Kpis {
   topChannelSharePct: number;
 }
 
-export function computeKpis(all: RawRecord[], filtered: RawRecord[]): Kpis {
+// selectedMonth: "ทั้งหมด" or a specific "YYYY-MM". When a specific month is
+// selected, the top two cards show that month's totals with a real MoM delta
+// against the true calendar-previous month. When "ทั้งหมด" is selected, they
+// show the sum across every month currently in `filtered` instead — deltas
+// don't make sense for a multi-month sum, so they're omitted.
+export function computeKpis(all: RawRecord[], filtered: RawRecord[], selectedMonth: string): Kpis {
   const allMonths = Array.from(new Set(all.map((r) => r.m))).sort();
-  const curMonth = allMonths.length ? allMonths[allMonths.length - 1] : null;
-  const prevMonth = allMonths.length >= 2 ? allMonths[allMonths.length - 2] : null;
+  const isTotal = selectedMonth === "ทั้งหมด";
 
-  const curRecords = curMonth ? all.filter((r) => r.m === curMonth) : [];
-  const prevRecords = prevMonth ? all.filter((r) => r.m === prevMonth) : [];
+  let curMonth: string | null;
+  let curMonthLabel: string;
+  let curCount: number;
+  let curValue: number;
+  let countDeltaPct: number | null = null;
+  let valueDeltaPct: number | null = null;
 
-  const curCount = curRecords.length;
-  const curValue = curRecords.reduce((s, r) => s + (r.v ?? 0), 0);
-  const prevCount = prevRecords.length;
-  const prevValue = prevRecords.reduce((s, r) => s + (r.v ?? 0), 0);
+  if (isTotal) {
+    curMonth = null;
+    curMonthLabel = "รวมทั้งหมด";
+    curCount = filtered.length;
+    curValue = filtered.reduce((s, r) => s + (r.v ?? 0), 0);
+  } else {
+    curMonth = selectedMonth;
+    curMonthLabel = MONTH_LABELS[selectedMonth] ?? selectedMonth;
+    curCount = filtered.length;
+    curValue = filtered.reduce((s, r) => s + (r.v ?? 0), 0);
 
-  const countDeltaPct = prevMonth && prevCount ? ((curCount - prevCount) / prevCount) * 100 : null;
-  const valueDeltaPct = prevMonth && prevValue ? ((curValue - prevValue) / prevValue) * 100 : null;
+    const idx = allMonths.indexOf(selectedMonth);
+    const prevMonth = idx > 0 ? allMonths[idx - 1] : null;
+    if (prevMonth) {
+      const prevRecords = all.filter((r) => r.m === prevMonth);
+      const prevCount = prevRecords.length;
+      const prevValue = prevRecords.reduce((s, r) => s + (r.v ?? 0), 0);
+      countDeltaPct = prevCount ? ((curCount - prevCount) / prevCount) * 100 : null;
+      valueDeltaPct = prevValue ? ((curValue - prevValue) / prevValue) * 100 : null;
+    }
+  }
 
   const filteredMonths = new Set(filtered.map((r) => r.m));
   const nMonths = Math.max(filteredMonths.size, 1);
@@ -72,7 +95,8 @@ export function computeKpis(all: RawRecord[], filtered: RawRecord[]): Kpis {
 
   return {
     curMonth,
-    curMonthLabel: curMonth ? MONTH_LABELS[curMonth] ?? curMonth : "-",
+    curMonthLabel,
+    isTotal,
     curCount,
     curValue,
     countDeltaPct,

@@ -127,7 +127,10 @@ export default function Home() {
     return selectedMonth === "ทั้งหมด" ? allRecords : allRecords.filter((r) => r.m === selectedMonth);
   }, [allRecords, selectedMonth]);
 
-  const kpis = useMemo(() => (allRecords ? computeKpis(allRecords, filtered) : null), [allRecords, filtered]);
+  const kpis = useMemo(
+    () => (allRecords ? computeKpis(allRecords, filtered, selectedMonth) : null),
+    [allRecords, filtered, selectedMonth]
+  );
   const trend = useMemo(() => monthlyTrend(filtered), [filtered]);
   const channelCounts = useMemo(() => countBy(filtered, (r) => r.c ?? "ไม่ระบุ").slice(0, 4), [filtered]);
   const totalForShare = channelCounts.reduce((s, [, v]) => s + v, 0) || 1;
@@ -262,7 +265,13 @@ export default function Home() {
             gradientFrom={COLORS.pink}
             gradientTo={COLORS.pinkDark}
             glow="rgba(219,39,119,0.55)"
-            sub={<DeltaPill pct={kpis.countDeltaPct} badWhenUp note="จากเดือนก่อน" />}
+            sub={
+              kpis.isTotal ? (
+                <span className="kpi-delta">รวม {kpis.nMonths} เดือนที่เลือก</span>
+              ) : (
+                <DeltaPill pct={kpis.countDeltaPct} badWhenUp note="จากเดือนก่อน" />
+              )
+            }
           />
           <KpiCard
             label={`มูลค่าตีกลับ · ${kpis.curMonthLabel}`}
@@ -271,7 +280,13 @@ export default function Home() {
             gradientFrom={COLORS.purple}
             gradientTo={COLORS.purpleDark}
             glow="rgba(124,58,237,0.55)"
-            sub={<DeltaPill pct={kpis.valueDeltaPct} badWhenUp note="จากเดือนก่อน" />}
+            sub={
+              kpis.isTotal ? (
+                <span className="kpi-delta">รวม {kpis.nMonths} เดือนที่เลือก</span>
+              ) : (
+                <DeltaPill pct={kpis.valueDeltaPct} badWhenUp note="จากเดือนก่อน" />
+              )
+            }
           />
           <KpiCard
             label="เฉลี่ยต่อเดือน"
