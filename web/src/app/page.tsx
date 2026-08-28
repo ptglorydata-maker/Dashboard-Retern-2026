@@ -68,6 +68,7 @@ function KpiCard({
   gradientTo,
   glow,
   sub,
+  onClick,
 }: {
   label: string;
   value: string;
@@ -76,11 +77,14 @@ function KpiCard({
   gradientTo: string;
   glow: string;
   sub: React.ReactNode;
+  onClick?: () => void;
 }) {
   const sizeClass = value.length > 11 ? "text-[1.3rem]" : value.length > 7 ? "text-[1.65rem]" : "text-[2.35rem]";
   return (
-    <div
-      className="kpi-card"
+    <button
+      type="button"
+      onClick={onClick}
+      className="kpi-card text-left cursor-pointer"
       style={{
         backgroundImage: `linear-gradient(135deg, ${gradientFrom}, ${gradientTo})`,
         boxShadow: `0 14px 28px -10px ${glow}`,
@@ -96,7 +100,8 @@ function KpiCard({
         {value}
       </div>
       <div className="relative z-10">{sub}</div>
-    </div>
+      <div className="relative z-10 text-[0.68rem] opacity-80 mt-1">คลิกดูรายละเอียด →</div>
+    </button>
   );
 }
 
@@ -109,6 +114,7 @@ export default function Home() {
   const [compareDim, setCompareDim] = useState<Dimension>("n");
   const [mapChannel, setMapChannel] = useState<string>("ทั้งหมด");
   const [mapSort, setMapSort] = useState<"มากสุด" | "น้อยสุด">("มากสุด");
+  const [kpiModal, setKpiModal] = useState<"count" | "value" | "avg" | "channel" | null>(null);
 
   useEffect(() => {
     fetch("/data/records.json")
@@ -245,7 +251,7 @@ export default function Home() {
               <img src="/logo-mark.png" alt="PT Glory" className="w-full h-full object-contain" />
             </div>
             <div>
-              <p className="text-[2.6rem] font-extrabold leading-[1.15] m-0 text-black">
+              <p className="text-[2.6rem] font-semibold leading-[1.15] m-0 text-black">
                 Dashboard สินค้าตีกลับ ปี 2569
               </p>
               <div className="flex items-center gap-1.5 mt-1.5 text-[0.85rem] text-gray-500">
@@ -272,6 +278,7 @@ export default function Home() {
             gradientFrom={COLORS.pink}
             gradientTo={COLORS.pinkDark}
             glow="rgba(219,39,119,0.55)"
+            onClick={() => setKpiModal("count")}
             sub={
               kpis.isTotal ? (
                 <span className="kpi-delta">รวม {kpis.nMonths} เดือนที่เลือก</span>
@@ -287,6 +294,7 @@ export default function Home() {
             gradientFrom={COLORS.purple}
             gradientTo={COLORS.purpleDark}
             glow="rgba(124,58,237,0.55)"
+            onClick={() => setKpiModal("value")}
             sub={
               kpis.isTotal ? (
                 <span className="kpi-delta">รวม {kpis.nMonths} เดือนที่เลือก</span>
@@ -302,6 +310,7 @@ export default function Home() {
             gradientFrom={COLORS.blue}
             gradientTo={COLORS.blueDark}
             glow="rgba(37,99,235,0.55)"
+            onClick={() => setKpiModal("avg")}
             sub={<span className="kpi-delta">รายการ/เดือน จาก {kpis.nMonths} เดือนที่เลือก</span>}
           />
           <KpiCard
@@ -311,6 +320,7 @@ export default function Home() {
             gradientFrom={COLORS.orange}
             gradientTo={COLORS.orangeDark}
             glow="rgba(234,88,12,0.55)"
+            onClick={() => setKpiModal("channel")}
             sub={<span className="kpi-delta">{kpis.topChannelSharePct.toFixed(0)}% ของยอดตีกลับทั้งหมด</span>}
           />
         </div>
@@ -584,6 +594,92 @@ export default function Home() {
           </div>
         )}
       </main>
+
+      {kpiModal && (
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+          onClick={() => setKpiModal(null)}
+        >
+          <div
+            className="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="font-semibold text-lg m-0">
+                  {kpiModal === "count" && "รายละเอียดยอดตีกลับรายเดือน"}
+                  {kpiModal === "value" && "รายละเอียดมูลค่าตีกลับรายเดือน"}
+                  {kpiModal === "avg" && "รายละเอียดยอดตีกลับรายเดือน"}
+                  {kpiModal === "channel" && "รายละเอียดยอดตีกลับแยกตามช่องทาง"}
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  {kpiModal === "channel"
+                    ? `ตามช่วงที่เลือก (${selectedMonth === "ทั้งหมด" ? "ทั้งหมด" : MONTH_LABELS[selectedMonth] ?? selectedMonth})`
+                    : "เทียบทุกเดือนที่มีข้อมูล"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setKpiModal(null)}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none px-2"
+              >
+                ×
+              </button>
+            </div>
+
+            {(kpiModal === "count" || kpiModal === "value" || kpiModal === "avg") && (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b border-gray-200">
+                    <th className="py-2 pr-3 font-medium">เดือน</th>
+                    <th className="py-2 pr-3 font-medium text-right">ยอดตีกลับ</th>
+                    <th className="py-2 pr-3 font-medium text-right">% เทียบเดือนก่อน</th>
+                    <th className="py-2 font-medium text-right">มูลค่า (บาท)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyRows.map((row) => (
+                    <tr key={row.month} className="border-b border-gray-100 last:border-0">
+                      <td className="py-2 pr-3 font-medium">{row.label}</td>
+                      <td className="py-2 pr-3 text-right">{formatNumber(row.count)}</td>
+                      <td className={`py-2 pr-3 text-right ${row.countDeltaPct == null ? "text-gray-400" : row.countDeltaPct >= 0 ? "text-red-600" : "text-green-600"}`}>
+                        {row.countDeltaPct == null ? "-" : `${row.countDeltaPct >= 0 ? "▲" : "▼"} ${Math.abs(row.countDeltaPct).toFixed(1)}%`}
+                      </td>
+                      <td className="py-2 text-right">{formatBaht(row.value)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+
+            {kpiModal === "channel" && (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b border-gray-200">
+                    <th className="py-2 pr-3 font-medium">ช่องทาง</th>
+                    <th className="py-2 pr-3 font-medium text-right">ยอดตีกลับ</th>
+                    <th className="py-2 pr-3 font-medium text-right">สัดส่วน</th>
+                    <th className="py-2 font-medium text-right">มูลค่า (บาท)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allChannels.map((row, i) => (
+                    <tr key={row.name} className="border-b border-gray-100 last:border-0">
+                      <td className="py-2 pr-3 flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full inline-block" style={{ background: DONUT_PALETTE[i % DONUT_PALETTE.length] }} />
+                        {row.name}
+                      </td>
+                      <td className="py-2 pr-3 text-right">{formatNumber(row.count)}</td>
+                      <td className="py-2 pr-3 text-right">{row.sharePct.toFixed(1)}%</td>
+                      <td className="py-2 text-right">{formatBaht(row.value)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
