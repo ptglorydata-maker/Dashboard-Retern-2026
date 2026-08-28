@@ -12,6 +12,9 @@ import {
   PieChart,
   Pie,
   Cell,
+  BarChart,
+  Bar,
+  LabelList,
 } from "recharts";
 import { RawRecord, MONTH_LABELS, COLORS } from "@/lib/types";
 import {
@@ -22,6 +25,9 @@ import {
   monthlySummary,
   channelBreakdown,
   topProducts,
+  topByDimension,
+  DIMENSION_LABELS,
+  Dimension,
 } from "@/lib/aggregate";
 
 const MENU_ITEMS = ["ภาพรวม", "รายเดือน", "ช่องทางขาย", "สินค้า"];
@@ -98,6 +104,7 @@ export default function Home() {
   const [updatedAt, setUpdatedAt] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<string>("ทั้งหมด");
   const [activeMenu, setActiveMenu] = useState<string>(MENU_ITEMS[0]);
+  const [compareDim, setCompareDim] = useState<Dimension>("n");
 
   useEffect(() => {
     fetch("/data/records.json")
@@ -135,15 +142,6 @@ export default function Home() {
   const channelCounts = useMemo(() => countBy(filtered, (r) => r.c ?? "ไม่ระบุ").slice(0, 4), [filtered]);
   const totalForShare = channelCounts.reduce((s, [, v]) => s + v, 0) || 1;
 
-  const recent = useMemo(
-    () =>
-      [...filtered]
-        .filter((r) => r.t)
-        .sort((a, b) => (b.t! > a.t! ? 1 : -1))
-        .slice(0, 6),
-    [filtered]
-  );
-
   const tableRows = useMemo(
     () =>
       [...filtered]
@@ -156,6 +154,7 @@ export default function Home() {
   const monthlyRows = useMemo(() => (allRecords ? monthlySummary(allRecords) : []), [allRecords]);
   const allChannels = useMemo(() => channelBreakdown(filtered), [filtered]);
   const products = useMemo(() => topProducts(filtered), [filtered]);
+  const compareRows = useMemo(() => topByDimension(filtered, compareDim, 8), [filtered, compareDim]);
 
   if (!allRecords || !kpis) {
     return (
@@ -364,25 +363,49 @@ export default function Home() {
         {/* Activity + table */}
         <div className="grid grid-cols-3 gap-5 mt-5">
           <div className="panel">
-            <h4 className="font-semibold text-[1rem] m-0">กิจกรรมล่าสุด</h4>
-            <p className="text-[0.78rem] text-gray-500 mt-0.5 mb-2">รายการตีกลับที่เพิ่มเข้ามาล่าสุด</p>
-            {recent.map((r, i) => (
-              <div key={i} className="flex gap-3 items-start py-2 border-b border-gray-100 last:border-0">
-                <span
-                  className="w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0"
-                  style={{ background: DONUT_PALETTE[i % DONUT_PALETTE.length] }}
-                />
-                <div className="flex-1">
-                  <div className="text-[0.85rem] font-semibold">{r.n ?? "สินค้า"}</div>
-                  <div className="text-[0.75rem] text-gray-500">
-                    {r.c ?? "-"} · {r.p ?? "-"}
-                  </div>
-                </div>
-                <div className="text-[0.7rem] text-gray-500 whitespace-nowrap">
-                  {r.t ? new Date(r.t).toLocaleDateString("th-TH", { day: "2-digit", month: "short" }) : "-"}
-                </div>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h4 className="font-semibold text-[1rem] m-0">เปรียบเทียบยอดตีกลับ</h4>
+                <p className="text-[0.78rem] text-gray-500 mt-0.5 mb-2">
+                  Top {compareRows.length} เรียงตามยอดตีกลับ (มูลค่าต่อรายการแสดงท้ายแท่ง)
+                </p>
               </div>
-            ))}
+              <select
+                value={compareDim}
+                onChange={(e) => setCompareDim(e.target.value as Dimension)}
+                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 flex-shrink-0"
+              >
+                {(Object.keys(DIMENSION_LABELS) as Dimension[]).map((d) => (
+                  <option key={d} value={d}>
+                    {DIMENSION_LABELS[d]}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ width: "100%", height: 280 }}>
+              <ResponsiveContainer>
+                <BarChart data={compareRows} layout="vertical" margin={{ left: 4, right: 40, top: 4, bottom: 4 }}>
+                  <XAxis type="number" hide />
+                  <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
+                  <Tooltip
+                    formatter={(v, key) =>
+                      key === "count" ? [`${formatNumber(Number(v))} รายการ`, "ยอดตีกลับ"] : [formatBaht(Number(v)), "มูลค่า"]
+                    }
+                  />
+                  <Bar dataKey="count" radius={[0, 6, 6, 0]}>
+                    {compareRows.map((_, i) => (
+                      <Cell key={i} fill={DONUT_PALETTE[i % DONUT_PALETTE.length]} />
+                    ))}
+                    <LabelList
+                      dataKey="value"
+                      position="right"
+                      formatter={(v) => formatBaht(Number(v))}
+                      style={{ fontSize: 10, fill: "#8a8fa3" }}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
           <div className="col-span-2 panel">
             <h4 className="font-semibold text-[1rem] m-0">รายการตีกลับ</h4>
