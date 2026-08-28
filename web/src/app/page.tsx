@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSession, signOut } from "next-auth/react";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -32,7 +33,7 @@ import {
 } from "@/lib/aggregate";
 import { ThailandMap } from "@/components/ThailandMap";
 
-const MENU_ITEMS = ["ภาพรวม", "รายเดือน", "ช่องทางขาย", "สินค้า"];
+const MENU_ITEMS = ["ภาพรวม", "รายเดือน", "ช่องทางขาย", "สินค้า", "สถิติเข้าใช้งาน"];
 const DONUT_PALETTE = [COLORS.pink, COLORS.purple, COLORS.blue, COLORS.orange];
 
 function formatNumber(n: number) {
@@ -84,7 +85,7 @@ function KpiCard({
     <button
       type="button"
       onClick={onClick}
-      className="kpi-card text-left cursor-pointer"
+      className={`kpi-card text-left ${onClick ? "cursor-pointer" : "cursor-default"}`}
       style={{
         backgroundImage: `linear-gradient(135deg, ${gradientFrom}, ${gradientTo})`,
         boxShadow: `0 14px 28px -10px ${glow}`,
@@ -100,7 +101,7 @@ function KpiCard({
         {value}
       </div>
       <div className="relative z-10">{sub}</div>
-      <div className="relative z-10 text-[0.68rem] opacity-80 mt-1">คลิกดูรายละเอียด →</div>
+      {onClick && <div className="relative z-10 text-[0.68rem] opacity-80 mt-1">คลิกดูรายละเอียด →</div>}
     </button>
   );
 }
@@ -115,6 +116,28 @@ export default function Home() {
   const [mapChannel, setMapChannel] = useState<string>("ทั้งหมด");
   const [mapSort, setMapSort] = useState<"มากสุด" | "น้อยสุด">("มากสุด");
   const [kpiModal, setKpiModal] = useState<"count" | "value" | "avg" | "channel" | null>(null);
+  const { data: session } = useSession();
+  const [visitStats, setVisitStats] = useState<{
+    monthly: { label: string; count: number }[];
+    quarterly: { label: string; count: number }[];
+    yearly: { label: string; count: number }[];
+    total: number;
+    configured: boolean;
+  } | null>(null);
+
+  // Log this visit once per page load, then load the aggregated stats for
+  // the "สถิติเข้าใช้งาน" tab.
+  useEffect(() => {
+    fetch("/api/track-visit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: "/" }),
+    }).catch(() => {});
+    fetch("/api/visit-stats")
+      .then((r) => r.json())
+      .then(setVisitStats)
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch("/data/records.json")
@@ -228,6 +251,19 @@ export default function Home() {
             </option>
           ))}
         </select>
+
+        {session?.user?.email && (
+          <div className="mt-6 pt-4 border-t border-white/15">
+            <div className="text-xs text-white/60 truncate">เข้าสู่ระบบ: {session.user.email}</div>
+            <button
+              type="button"
+              onClick={() => signOut()}
+              className="mt-2 text-xs text-white/80 hover:text-white underline"
+            >
+              ออกจากระบบ
+            </button>
+          </div>
+        )}
       </aside>
 
       {/* Main */}
@@ -591,6 +627,66 @@ export default function Home() {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {/* Visit stats tab */}
+        {activeMenu === "สถิติเข้าใช้งาน" && (
+          <div className="mt-5">
+            {!visitStats || !visitStats.configured ? (
+              <div className="panel">
+                <p className="text-sm text-gray-500">
+                  {!visitStats ? "กำลังโหลดสถิติ..." : "ยังไม่ได้ตั้งค่า VISIT_LOG_SPREADSHEET_ID — ยังไม่มีข้อมูลสถิติการเข้าใช้งาน"}
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-3 gap-5">
+                  <KpiCard
+                    label="เดือนนี้"
+                    value={formatNumber(visitStats.monthly.at(-1)?.count ?? 0)}
+                    icon="👁️"
+                    gradientFrom={COLORS.pink}
+                    gradientTo={COLORS.pinkDark}
+                    glow="rgba(219,39,119,0.55)"
+                    sub={<span className="kpi-delta">{visitStats.monthly.at(-1)?.label ?? "-"}</span>}
+                  />
+                  <KpiCard
+                    label="ไตรมาสนี้"
+                    value={formatNumber(visitStats.quarterly.at(-1)?.count ?? 0)}
+                    icon="📅"
+                    gradientFrom={COLORS.purple}
+                    gradientTo={COLORS.purpleDark}
+                    glow="rgba(124,58,237,0.55)"
+                    sub={<span className="kpi-delta">{visitStats.quarterly.at(-1)?.label ?? "-"}</span>}
+                  />
+                  <KpiCard
+                    label="ปีนี้"
+                    value={formatNumber(visitStats.yearly.at(-1)?.count ?? 0)}
+                    icon="📈"
+                    gradientFrom={COLORS.blue}
+                    gradientTo={COLORS.blueDark}
+                    glow="rgba(37,99,235,0.55)"
+                    sub={<span className="kpi-delta">{visitStats.yearly.at(-1)?.label ?? "-"} · รวมทั้งหมด {formatNumber(visitStats.total)}</span>}
+                  />
+                </div>
+                <div className="panel mt-5">
+                  <h4 className="font-semibold text-[1rem] m-0">การเข้าใช้งานรายเดือน</h4>
+                  <p className="text-[0.78rem] text-gray-500 mt-0.5 mb-2">จำนวนครั้งที่มีคนเข้าดู dashboard ต่อเดือน</p>
+                  <div style={{ width: "100%", height: 260 }}>
+                    <ResponsiveContainer>
+                      <BarChart data={visitStats.monthly}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f1f6" />
+                        <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                        <Tooltip formatter={(v) => [`${formatNumber(Number(v))} ครั้ง`, "เข้าชม"]} />
+                        <Bar dataKey="count" radius={[6, 6, 0, 0]} fill={COLORS.pink} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
       </main>
