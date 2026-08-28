@@ -41,7 +41,7 @@ export function ThailandMap({ data }: { data: ProvinceDatum[] }) {
 
   const maxCount = useMemo(() => Math.max(1, ...data.map((d) => d.count)), [data]);
   const colorScale = useMemo(
-    () => scaleLinear<string>().domain([0, maxCount]).range(["#fbe4ef", COLORS.pinkDark]),
+    () => scaleLinear<string>().domain([0, maxCount]).range(["#173047", COLORS.cyan]),
     [maxCount]
   );
 
@@ -56,7 +56,7 @@ export function ThailandMap({ data }: { data: ProvinceDatum[] }) {
   }, [geoData]);
 
   if (!geoData || !pathFor) {
-    return <div className="flex items-center justify-center text-sm text-gray-400" style={{ height }}>กำลังโหลดแผนที่...</div>;
+    return <div className="flex items-center justify-center text-sm text-white/40" style={{ height }}>กำลังโหลดแผนที่...</div>;
   }
 
   return (
@@ -68,8 +68,8 @@ export function ThailandMap({ data }: { data: ProvinceDatum[] }) {
             <path
               key={f.properties.name}
               d={pathFor(f)}
-              fill={d ? colorScale(d.count) : "#f1f2f6"}
-              stroke="#ffffff"
+              fill={d ? colorScale(d.count) : "#1a2540"}
+              stroke="#0a0f1e"
               strokeWidth={0.6}
               onMouseMove={(e) => {
                 const rect = (e.target as SVGElement).ownerSVGElement!.getBoundingClientRect();
@@ -82,7 +82,7 @@ export function ThailandMap({ data }: { data: ProvinceDatum[] }) {
       </svg>
       {hover && (
         <div
-          className="absolute pointer-events-none bg-white border border-gray-200 rounded-lg shadow-lg px-3 py-2 text-xs z-10"
+          className="absolute pointer-events-none bg-[#121a2e] border border-white/10 rounded-lg shadow-lg px-3 py-2 text-xs z-10 text-white/90"
           style={{ left: Math.min(hover.x + 10, width - 140), top: Math.max(hover.y - 10, 0) }}
         >
           <div className="font-semibold">{hover.d?.name ?? hover.name}</div>
@@ -92,7 +92,7 @@ export function ThailandMap({ data }: { data: ProvinceDatum[] }) {
               <div>มูลค่า: ฿{hover.d.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
             </>
           ) : (
-            <div className="text-gray-400">ไม่มีข้อมูล</div>
+            <div className="text-white/40">ไม่มีข้อมูล</div>
           )}
         </div>
       )}
