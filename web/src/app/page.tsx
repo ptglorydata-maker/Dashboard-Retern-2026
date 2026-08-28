@@ -14,7 +14,15 @@ import {
   Cell,
 } from "recharts";
 import { RawRecord, MONTH_LABELS, COLORS } from "@/lib/types";
-import { demoData, computeKpis, countBy, monthlyTrend } from "@/lib/aggregate";
+import {
+  demoData,
+  computeKpis,
+  countBy,
+  monthlyTrend,
+  monthlySummary,
+  channelBreakdown,
+  topProducts,
+} from "@/lib/aggregate";
 
 const MENU_ITEMS = ["ภาพรวม", "รายเดือน", "ช่องทางขาย", "สินค้า"];
 const DONUT_PALETTE = [COLORS.pink, COLORS.purple, COLORS.blue, COLORS.orange];
@@ -142,6 +150,10 @@ export default function Home() {
     [filtered]
   );
 
+  const monthlyRows = useMemo(() => (allRecords ? monthlySummary(allRecords) : []), [allRecords]);
+  const allChannels = useMemo(() => channelBreakdown(filtered), [filtered]);
+  const products = useMemo(() => topProducts(filtered), [filtered]);
+
   if (!allRecords || !kpis) {
     return (
       <div className="min-h-screen flex items-center justify-center text-gray-500">กำลังโหลดข้อมูล...</div>
@@ -186,9 +198,6 @@ export default function Home() {
             );
           })}
         </nav>
-        {activeMenu !== MENU_ITEMS[0] && (
-          <p className="text-xs text-white/60 mt-2 px-1">หน้า &ldquo;{activeMenu}&rdquo; อยู่ระหว่างพัฒนา — ตอนนี้แสดงภาพรวมให้ก่อน</p>
-        )}
         <hr className="my-5 border-white/15" />
         <div className="text-sm mb-2 opacity-90">เลือกเดือน</div>
         <select
@@ -284,7 +293,9 @@ export default function Home() {
           />
         </div>
 
-        {/* Charts */}
+        {/* Overview tab */}
+        {activeMenu === "ภาพรวม" && (
+        <>
         <div className="grid grid-cols-3 gap-5 mt-5">
           <div className="col-span-2 panel">
             <h4 className="font-semibold text-[1rem] m-0">แนวโน้มยอดตีกลับรายเดือน</h4>
@@ -389,6 +400,126 @@ export default function Home() {
             </div>
           </div>
         </div>
+        </>
+        )}
+
+        {/* Monthly tab */}
+        {activeMenu === "รายเดือน" && (
+          <div className="panel mt-5">
+            <h4 className="font-semibold text-[1rem] m-0">สรุปยอด/มูลค่าตีกลับรายเดือน</h4>
+            <p className="text-[0.78rem] text-gray-500 mt-0.5 mb-3">เปรียบเทียบทุกเดือนที่มีข้อมูล เทียบกับเดือนก่อนหน้า</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b border-gray-200">
+                    <th className="py-2 pr-3 font-medium">เดือน</th>
+                    <th className="py-2 pr-3 font-medium text-right">ยอดตีกลับ (รายการ)</th>
+                    <th className="py-2 pr-3 font-medium text-right">% เทียบเดือนก่อน</th>
+                    <th className="py-2 pr-3 font-medium text-right">มูลค่าตีกลับ (บาท)</th>
+                    <th className="py-2 font-medium text-right">% เทียบเดือนก่อน</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyRows.map((row) => (
+                    <tr key={row.month} className="border-b border-gray-100 last:border-0">
+                      <td className="py-2 pr-3 font-medium">{row.label}</td>
+                      <td className="py-2 pr-3 text-right">{formatNumber(row.count)}</td>
+                      <td className={`py-2 pr-3 text-right ${row.countDeltaPct == null ? "text-gray-400" : row.countDeltaPct >= 0 ? "text-red-600" : "text-green-600"}`}>
+                        {row.countDeltaPct == null ? "-" : `${row.countDeltaPct >= 0 ? "▲" : "▼"} ${Math.abs(row.countDeltaPct).toFixed(1)}%`}
+                      </td>
+                      <td className="py-2 pr-3 text-right">{formatBaht(row.value)}</td>
+                      <td className={`py-2 text-right ${row.valueDeltaPct == null ? "text-gray-400" : row.valueDeltaPct >= 0 ? "text-red-600" : "text-green-600"}`}>
+                        {row.valueDeltaPct == null ? "-" : `${row.valueDeltaPct >= 0 ? "▲" : "▼"} ${Math.abs(row.valueDeltaPct).toFixed(1)}%`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Channel tab */}
+        {activeMenu === "ช่องทางขาย" && (
+          <div className="grid grid-cols-3 gap-5 mt-5">
+            <div className="panel">
+              <h4 className="font-semibold text-[1rem] m-0">สัดส่วนช่องทางตีกลับ</h4>
+              <p className="text-[0.78rem] text-gray-500 mt-0.5 mb-2">
+                ทุกช่องทาง ({selectedMonth === "ทั้งหมด" ? "ทั้งหมด" : MONTH_LABELS[selectedMonth] ?? selectedMonth})
+              </p>
+              <div style={{ width: "100%", height: 240 }}>
+                <ResponsiveContainer>
+                  <PieChart>
+                    <Pie data={allChannels} dataKey="count" nameKey="name" innerRadius="60%" outerRadius="95%">
+                      {allChannels.map((_, i) => (
+                        <Cell key={i} fill={DONUT_PALETTE[i % DONUT_PALETTE.length]} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            <div className="col-span-2 panel">
+              <h4 className="font-semibold text-[1rem] m-0">ยอด/มูลค่าตีกลับแยกตามช่องทาง</h4>
+              <p className="text-[0.78rem] text-gray-500 mt-0.5 mb-2">เรียงจากยอดตีกลับมากไปน้อย</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-gray-500 border-b border-gray-200">
+                      <th className="py-2 pr-3 font-medium">ช่องทาง</th>
+                      <th className="py-2 pr-3 font-medium text-right">ยอดตีกลับ</th>
+                      <th className="py-2 pr-3 font-medium text-right">สัดส่วน</th>
+                      <th className="py-2 font-medium text-right">มูลค่า (บาท)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allChannels.map((row, i) => (
+                      <tr key={row.name} className="border-b border-gray-100 last:border-0">
+                        <td className="py-2 pr-3 flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full inline-block" style={{ background: DONUT_PALETTE[i % DONUT_PALETTE.length] }} />
+                          {row.name}
+                        </td>
+                        <td className="py-2 pr-3 text-right">{formatNumber(row.count)}</td>
+                        <td className="py-2 pr-3 text-right">{row.sharePct.toFixed(1)}%</td>
+                        <td className="py-2 text-right">{formatBaht(row.value)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Product tab */}
+        {activeMenu === "สินค้า" && (
+          <div className="panel mt-5">
+            <h4 className="font-semibold text-[1rem] m-0">สินค้าที่ถูกตีกลับมากที่สุด</h4>
+            <p className="text-[0.78rem] text-gray-500 mt-0.5 mb-3">Top {products.length} สินค้า เรียงตามยอดตีกลับ</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b border-gray-200">
+                    <th className="py-2 pr-3 font-medium w-10">#</th>
+                    <th className="py-2 pr-3 font-medium">สินค้า</th>
+                    <th className="py-2 pr-3 font-medium text-right">ยอดตีกลับ</th>
+                    <th className="py-2 font-medium text-right">มูลค่า (บาท)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {products.map((row, i) => (
+                    <tr key={row.name} className="border-b border-gray-100 last:border-0">
+                      <td className="py-2 pr-3 text-gray-400">{i + 1}</td>
+                      <td className="py-2 pr-3">{row.name}</td>
+                      <td className="py-2 pr-3 text-right">{formatNumber(row.count)}</td>
+                      <td className="py-2 text-right">{formatBaht(row.value)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

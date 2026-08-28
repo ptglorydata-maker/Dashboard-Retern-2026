@@ -100,3 +100,73 @@ export function monthlyTrend(records: RawRecord[]): { month: string; label: stri
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([month, count]) => ({ month, label: MONTH_LABELS[month] ?? month, count }));
 }
+
+export interface MonthlySummaryRow {
+  month: string;
+  label: string;
+  count: number;
+  value: number;
+  countDeltaPct: number | null;
+  valueDeltaPct: number | null;
+}
+
+// Always built from the full (unfiltered) dataset — a month-by-month summary
+// table doesn't make sense scoped to a single selected month.
+export function monthlySummary(all: RawRecord[]): MonthlySummaryRow[] {
+  const months = Array.from(new Set(all.map((r) => r.m))).sort();
+  let prevCount: number | null = null;
+  let prevValue: number | null = null;
+  return months.map((month) => {
+    const rows = all.filter((r) => r.m === month);
+    const count = rows.length;
+    const value = rows.reduce((s, r) => s + (r.v ?? 0), 0);
+    const countDeltaPct = prevCount ? ((count - prevCount) / prevCount) * 100 : null;
+    const valueDeltaPct = prevValue ? ((value - prevValue) / prevValue) * 100 : null;
+    prevCount = count;
+    prevValue = value;
+    return { month, label: MONTH_LABELS[month] ?? month, count, value, countDeltaPct, valueDeltaPct };
+  });
+}
+
+export interface ChannelRow {
+  name: string;
+  count: number;
+  value: number;
+  sharePct: number;
+}
+
+export function channelBreakdown(records: RawRecord[]): ChannelRow[] {
+  const map = new Map<string, { count: number; value: number }>();
+  for (const r of records) {
+    const key = r.c ?? "ไม่ระบุ";
+    const cur = map.get(key) ?? { count: 0, value: 0 };
+    cur.count += 1;
+    cur.value += r.v ?? 0;
+    map.set(key, cur);
+  }
+  const total = records.length || 1;
+  return Array.from(map.entries())
+    .map(([name, { count, value }]) => ({ name, count, value, sharePct: (count / total) * 100 }))
+    .sort((a, b) => b.count - a.count);
+}
+
+export interface ProductRow {
+  name: string;
+  count: number;
+  value: number;
+}
+
+export function topProducts(records: RawRecord[], limit = 15): ProductRow[] {
+  const map = new Map<string, { count: number; value: number }>();
+  for (const r of records) {
+    const key = r.n ?? "ไม่ระบุ";
+    const cur = map.get(key) ?? { count: 0, value: 0 };
+    cur.count += 1;
+    cur.value += r.v ?? 0;
+    map.set(key, cur);
+  }
+  return Array.from(map.entries())
+    .map(([name, { count, value }]) => ({ name, count, value }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
+}
