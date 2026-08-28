@@ -47,7 +47,13 @@ export interface RateRow {
 // Return-rate ranking for a dimension breakdown (courier / admin / SKU),
 // restricted to groups with at least `minOrders` orders so low-volume
 // noise (e.g. an admin who closed 3 sales) doesn't dominate the ranking.
-export function rateRanking(rows: DimBreakdownRow[], minOrders: number, limit = 10): RateRow[] {
+export function rateRanking(
+  rows: DimBreakdownRow[],
+  minOrders: number,
+  limit = 10,
+  sortDir: "desc" | "asc" = "desc"
+): RateRow[] {
+  const dir = sortDir === "desc" ? -1 : 1;
   return rows
     .filter((r) => r.orders >= minOrders)
     .map((r) => ({
@@ -57,7 +63,7 @@ export function rateRanking(rows: DimBreakdownRow[], minOrders: number, limit = 
       returned: r.returned,
       returnRatePct: r.orders ? (r.returned / r.orders) * 100 : 0,
     }))
-    .sort((a, b) => b.returnRatePct - a.returnRatePct)
+    .sort((a, b) => dir * (a.returnRatePct - b.returnRatePct))
     .slice(0, limit);
 }
 
@@ -282,7 +288,12 @@ export const DIMENSION_LABELS: Record<Dimension, string> = {
   c: "ช่องทางการขาย",
 };
 
-export function topByDimension(records: RawRecord[], dim: Dimension, limit = 8): ProductRow[] {
+export function topByDimension(
+  records: RawRecord[],
+  dim: Dimension,
+  limit = 8,
+  sortDir: "desc" | "asc" = "desc"
+): ProductRow[] {
   const map = new Map<string, { count: number; value: number }>();
   for (const r of records) {
     const key = (dim === "n" ? r.n : dim === "p" ? r.p : r.c) ?? "ไม่ระบุ";
@@ -291,9 +302,10 @@ export function topByDimension(records: RawRecord[], dim: Dimension, limit = 8):
     cur.value += r.v ?? 0;
     map.set(key, cur);
   }
+  const dir = sortDir === "desc" ? -1 : 1;
   return Array.from(map.entries())
     .map(([name, { count, value }]) => ({ name, count, value }))
-    .sort((a, b) => b.count - a.count)
+    .sort((a, b) => dir * (a.count - b.count))
     .slice(0, limit);
 }
 
