@@ -89,6 +89,7 @@ export default function Home() {
   const [isDemo, setIsDemo] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<string>("ทั้งหมด");
+  const [activeMenu, setActiveMenu] = useState<string>(MENU_ITEMS[0]);
 
   useEffect(() => {
     fetch("/data/records.json")
@@ -165,19 +166,29 @@ export default function Home() {
           </div>
         </div>
         <nav className="flex flex-col gap-1">
-          {MENU_ITEMS.map((item, i) => (
-            <div
-              key={item}
-              className={`px-3 py-2 rounded-lg text-sm flex items-center gap-2 ${i === 0 ? "bg-white/10" : ""}`}
-            >
-              <span
-                className={`w-2 h-2 rounded-full flex-shrink-0 ${i === 0 ? "" : "border border-white/60"}`}
-                style={i === 0 ? { background: COLORS.pink } : {}}
-              />
-              {item}
-            </div>
-          ))}
+          {MENU_ITEMS.map((item) => {
+            const active = item === activeMenu;
+            return (
+              <button
+                key={item}
+                type="button"
+                onClick={() => setActiveMenu(item)}
+                className={`px-3 py-2 rounded-lg text-sm flex items-center gap-2 text-left cursor-pointer transition-colors hover:bg-white/10 ${
+                  active ? "bg-white/10" : ""
+                }`}
+              >
+                <span
+                  className={`w-2 h-2 rounded-full flex-shrink-0 ${active ? "" : "border border-white/60"}`}
+                  style={active ? { background: COLORS.pink } : {}}
+                />
+                {item}
+              </button>
+            );
+          })}
         </nav>
+        {activeMenu !== MENU_ITEMS[0] && (
+          <p className="text-xs text-white/60 mt-2 px-1">หน้า &ldquo;{activeMenu}&rdquo; อยู่ระหว่างพัฒนา — ตอนนี้แสดงภาพรวมให้ก่อน</p>
+        )}
         <hr className="my-5 border-white/15" />
         <div className="text-sm mb-2 opacity-90">เลือกเดือน</div>
         <select
@@ -215,10 +226,7 @@ export default function Home() {
               <img src="/logo-mark.png" alt="PT Glory" className="w-full h-full object-contain" />
             </div>
             <div>
-              <p
-                className="text-[2.6rem] font-extrabold leading-[1.15] m-0 bg-clip-text text-transparent"
-                style={{ backgroundImage: `linear-gradient(135deg, ${COLORS.pinkDark}, ${COLORS.purpleDark})` }}
-              >
+              <p className="text-[2.6rem] font-extrabold leading-[1.15] m-0 text-black">
                 Dashboard สินค้าตีกลับ ปี 2569
               </p>
               <div className="flex items-center gap-1.5 mt-1.5 text-[0.85rem] text-gray-500">
