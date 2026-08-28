@@ -29,7 +29,7 @@ def _dedupe_headers(headers: list[str]) -> list[str]:
     seen: dict[str, int] = {}
     out = []
     for h in headers:
-        h = h.strip()
+        h = h.strip().replace("​", "")  # zero-width space seen in some sheet headers
         if h in seen:
             seen[h] += 1
             out.append(f"{h}__{seen[h]}")
@@ -85,7 +85,15 @@ def main() -> None:
         if raw.empty:
             print(f"  WARNING: {src['label']} came back empty, skipping.")
             continue
-        frames.append(normalize(raw, src["schema"], src["month"]))
+
+        extra = {}
+        if src["schema"] == "C":
+            returns_raw = read_sheet_raw(gc, src["spreadsheet_id"], src["returns_gid"])
+            id_col = "หมายเลขออเดอร์ภายใน"
+            extra["returned_ids"] = set(returns_raw[id_col].astype(str).str.strip()) if id_col in returns_raw.columns else set()
+            print(f"  {len(extra['returned_ids'])} returned order ids from returns_gid={src['returns_gid']}")
+
+        frames.append(normalize(raw, src["schema"], src["month"], **extra))
         print(f"  {len(raw)} rows")
 
     if not frames:
