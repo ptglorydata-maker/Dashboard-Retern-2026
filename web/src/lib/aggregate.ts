@@ -181,9 +181,21 @@ export interface ProductRow {
 }
 
 export function topProducts(records: RawRecord[], limit = 15): ProductRow[] {
+  return topByDimension(records, "n", limit);
+}
+
+export type Dimension = "n" | "p" | "c";
+
+export const DIMENSION_LABELS: Record<Dimension, string> = {
+  n: "สินค้า",
+  p: "จังหวัด",
+  c: "ช่องทางการขาย",
+};
+
+export function topByDimension(records: RawRecord[], dim: Dimension, limit = 8): ProductRow[] {
   const map = new Map<string, { count: number; value: number }>();
   for (const r of records) {
-    const key = r.n ?? "ไม่ระบุ";
+    const key = (dim === "n" ? r.n : dim === "p" ? r.p : r.c) ?? "ไม่ระบุ";
     const cur = map.get(key) ?? { count: 0, value: 0 };
     cur.count += 1;
     cur.value += r.v ?? 0;
