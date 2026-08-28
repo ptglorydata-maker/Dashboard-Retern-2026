@@ -26,9 +26,11 @@ import {
   channelBreakdown,
   topProducts,
   topByDimension,
+  provinceBreakdown,
   DIMENSION_LABELS,
   Dimension,
 } from "@/lib/aggregate";
+import { ThailandMap } from "@/components/ThailandMap";
 
 const MENU_ITEMS = ["ภาพรวม", "รายเดือน", "ช่องทางขาย", "สินค้า"];
 const DONUT_PALETTE = [COLORS.pink, COLORS.purple, COLORS.blue, COLORS.orange];
@@ -105,6 +107,8 @@ export default function Home() {
   const [selectedMonth, setSelectedMonth] = useState<string>("ทั้งหมด");
   const [activeMenu, setActiveMenu] = useState<string>(MENU_ITEMS[0]);
   const [compareDim, setCompareDim] = useState<Dimension>("n");
+  const [mapChannel, setMapChannel] = useState<string>("ทั้งหมด");
+  const [mapSort, setMapSort] = useState<"มากสุด" | "น้อยสุด">("มากสุด");
 
   useEffect(() => {
     fetch("/data/records.json")
@@ -142,18 +146,22 @@ export default function Home() {
   const channelCounts = useMemo(() => countBy(filtered, (r) => r.c ?? "ไม่ระบุ").slice(0, 4), [filtered]);
   const totalForShare = channelCounts.reduce((s, [, v]) => s + v, 0) || 1;
 
-  const tableRows = useMemo(
-    () =>
-      [...filtered]
-        .filter((r) => r.t)
-        .sort((a, b) => (b.t! > a.t! ? 1 : -1))
-        .slice(0, 20),
-    [filtered]
-  );
-
   const monthlyRows = useMemo(() => (allRecords ? monthlySummary(allRecords) : []), [allRecords]);
   const allChannels = useMemo(() => channelBreakdown(filtered), [filtered]);
   const products = useMemo(() => topProducts(filtered), [filtered]);
+
+  const mapChannels = useMemo(
+    () => (allRecords ? Array.from(new Set(allRecords.map((r) => r.c).filter((c): c is string => !!c))).sort() : []),
+    [allRecords]
+  );
+  const mapRecords = useMemo(
+    () => (mapChannel === "ทั้งหมด" ? filtered : filtered.filter((r) => r.c === mapChannel)),
+    [filtered, mapChannel]
+  );
+  const provinceRows = useMemo(() => {
+    const rows = provinceBreakdown(mapRecords);
+    return mapSort === "มากสุด" ? rows : [...rows].reverse();
+  }, [mapRecords, mapSort]);
   const compareRows = useMemo(() => topByDimension(filtered, compareDim, 8), [filtered, compareDim]);
 
   if (!allRecords || !kpis) {
@@ -408,33 +416,50 @@ export default function Home() {
             </div>
           </div>
           <div className="col-span-2 panel">
-            <h4 className="font-semibold text-[1rem] m-0">รายการตีกลับ</h4>
-            <p className="text-[0.78rem] text-gray-500 mt-0.5 mb-2">ตารางรายการล่าสุด</p>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-gray-500 border-b border-gray-200">
-                    <th className="py-2 pr-3 font-medium">เลขออเดอร์</th>
-                    <th className="py-2 pr-3 font-medium">ช่องทาง</th>
-                    <th className="py-2 pr-3 font-medium">จังหวัด</th>
-                    <th className="py-2 pr-3 font-medium">สินค้า</th>
-                    <th className="py-2 pr-3 font-medium text-right">ราคา (บาท)</th>
-                    <th className="py-2 font-medium">วันที่สั่งซื้อ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tableRows.map((r, i) => (
-                    <tr key={i} className="border-b border-gray-100 last:border-0">
-                      <td className="py-2 pr-3">{r.id ?? "-"}</td>
-                      <td className="py-2 pr-3">{r.c ?? "-"}</td>
-                      <td className="py-2 pr-3">{r.p ?? "-"}</td>
-                      <td className="py-2 pr-3">{r.n ?? "-"}</td>
-                      <td className="py-2 pr-3 text-right">{r.v != null ? formatNumber(r.v) : "-"}</td>
-                      <td className="py-2">{r.t ? new Date(r.t).toLocaleDateString("th-TH") : "-"}</td>
-                    </tr>
+            <div className="flex items-start justify-between gap-2 flex-wrap">
+              <div>
+                <h4 className="font-semibold text-[1rem] m-0">ยอดสินค้าตีกลับตามจังหวัด</h4>
+                <p className="text-[0.78rem] text-gray-500 mt-0.5 mb-2">สีเข้ม = ยอดตีกลับสูง · ชี้ค้างที่แผนที่เพื่อดูรายละเอียด</p>
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
+                <select
+                  value={mapChannel}
+                  onChange={(e) => setMapChannel(e.target.value)}
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1.5"
+                >
+                  <option value="ทั้งหมด">ทุกช่องทาง</option>
+                  {mapChannels.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
                   ))}
-                </tbody>
-              </table>
+                </select>
+                <select
+                  value={mapSort}
+                  onChange={(e) => setMapSort(e.target.value as "มากสุด" | "น้อยสุด")}
+                  className="text-xs border border-gray-200 rounded-lg px-2 py-1.5"
+                >
+                  <option value="มากสุด">เรียงมากสุด</option>
+                  <option value="น้อยสุด">เรียงน้อยสุด</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-4 mt-1">
+              <div className="flex-1 flex justify-center">
+                <ThailandMap data={provinceRows} />
+              </div>
+              <div className="w-56 flex-shrink-0 overflow-y-auto" style={{ maxHeight: 480 }}>
+                {provinceRows.map((row, i) => (
+                  <div key={row.geo} className="flex items-center justify-between text-[0.8rem] py-1.5 border-b border-gray-100 last:border-0">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className="text-gray-400 w-5 flex-shrink-0">{i + 1}</span>
+                      <span className="truncate">{row.name}</span>
+                    </span>
+                    <span className="font-semibold flex-shrink-0 ml-2">{formatNumber(row.count)}</span>
+                  </div>
+                ))}
+                {provinceRows.length === 0 && <p className="text-xs text-gray-400 mt-4">ไม่มีข้อมูล</p>}
+              </div>
             </div>
           </div>
         </div>

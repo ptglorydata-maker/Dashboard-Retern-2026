@@ -3,7 +3,8 @@ export interface RawRecord {
   m: string; // month, "2026-01"
   id: string | null; // internal_order_id
   c: string | null; // sales_channel
-  p: string | null; // province
+  p: string | null; // province (Thai display name)
+  geo: string | null; // province name matching thailand-provinces.geojson, or null if unmatched
   n: string | null; // product_name
   v: number | null; // product_price
   t: string | null; // order_time, ISO
