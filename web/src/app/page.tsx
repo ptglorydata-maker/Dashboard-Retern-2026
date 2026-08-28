@@ -349,7 +349,7 @@ export default function Home() {
               <img src="/logo-mark.png" alt="PT Glory" className="w-full h-full object-contain" />
             </div>
             <div>
-              <p className="text-[2.6rem] font-semibold leading-[1.15] m-0 text-white">
+              <p className="text-[1.5rem] font-medium leading-[1.15] m-0 text-white">
                 Dashboard สินค้าตีกลับ ปี 2569
               </p>
               <div className="flex items-center gap-1.5 mt-1.5 text-[0.85rem] text-white/50">
@@ -454,16 +454,28 @@ export default function Home() {
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div className="flex flex-col gap-1.5 mt-1">
-              {channelCounts.map(([name, value], i) => (
-                <div key={name} className="flex justify-between text-[0.8rem]">
-                  <span className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full inline-block" style={{ background: DONUT_PALETTE[i % DONUT_PALETTE.length] }} />
-                    {name}
-                  </span>
-                  <b>{((value / totalForShare) * 100).toFixed(0)}%</b>
-                </div>
-              ))}
+            <div className="flex flex-col gap-2 mt-1">
+              {channelCounts.map(([name, value], i) => {
+                const pct = (value / totalForShare) * 100;
+                const color = DONUT_PALETTE[i % DONUT_PALETTE.length];
+                return (
+                  <div key={name} className="text-[0.8rem]">
+                    <div className="flex justify-between mb-1">
+                      <span className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full inline-block" style={{ background: color }} />
+                        {name}
+                      </span>
+                      <b>{pct.toFixed(0)}%</b>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-white/8 overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${pct}%`, background: color, boxShadow: `0 0 8px -1px ${color}aa` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
