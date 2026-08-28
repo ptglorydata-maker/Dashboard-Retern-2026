@@ -178,7 +178,13 @@ def main() -> None:
     by_month = dim_breakdown(df, "month")
     by_channel = dim_breakdown(df, "sales_channel")
     by_courier = dim_breakdown(df, "courier_norm")
-    by_admin = dim_breakdown(df, "salesperson")
+
+    # Some source sheets have broken formulas in the salesperson column
+    # (e.g. "#REF!" in the July sheet) — exclude those from the admin
+    # comparison rather than showing a spreadsheet error as if it were a
+    # real admin. Revisit once the source sheet is fixed.
+    admin_df = df[~df["salesperson"].astype(str).str.startswith("#", na=False)]
+    by_admin = dim_breakdown(admin_df, "salesperson")
 
     # SKU breakdown: only products that had at least one return — a rate
     # table for all 888 SKUs (most with zero returns) isn't useful and
