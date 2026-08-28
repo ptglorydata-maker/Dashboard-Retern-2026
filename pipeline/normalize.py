@@ -112,6 +112,31 @@ def normalize_schema_a(raw: pd.DataFrame, month: str) -> pd.DataFrame:
     return out.reindex(columns=STANDARD_COLUMNS)
 
 
+def normalize_schema_c(raw: pd.DataFrame, month: str, returned_ids: set[str]) -> pd.DataFrame:
+    """Full order-level sheet ("Total_Order on Sell") with no return-status
+    column of its own. Reuses schema A's column mapping (the headers match),
+    but is_returned/return_qty come from membership in `returned_ids` — the
+    internal_order_id set pulled from a separate returns-only tab — instead
+    of a return_qty/shipping_status column that doesn't exist here."""
+    out = pd.DataFrame(index=raw.index)
+    for target, source in SCHEMA_A_MAP.items():
+        if target == "return_qty":
+            continue
+        out[target] = raw[source] if source in raw.columns else None
+
+    out["month"] = month
+    out["source_schema"] = "C"
+    out["unit"] = _extract_unit(out["product_code"])
+    out["order_time"] = _parse_date(out["order_time"])
+    out["ship_date"] = _parse_date(out["ship_date"])
+    out["product_price"] = _parse_amount(out["product_price"])
+    ids = out["internal_order_id"].astype(str).str.strip()
+    out["is_returned"] = ids.isin(returned_ids)
+    out["return_qty"] = out["is_returned"].astype(int)
+
+    return out.reindex(columns=STANDARD_COLUMNS)
+
+
 def normalize_schema_b(raw: pd.DataFrame, month: str) -> pd.DataFrame:
     out = pd.DataFrame(index=raw.index)
     for target, source in SCHEMA_B_MAP.items():
@@ -132,6 +157,8 @@ def normalize_schema_b(raw: pd.DataFrame, month: str) -> pd.DataFrame:
 NORMALIZERS = {"A": normalize_schema_a, "B": normalize_schema_b}
 
 
-def normalize(raw: pd.DataFrame, schema: str, month: str) -> pd.DataFrame:
+def normalize(raw: pd.DataFrame, schema: str, month: str, **kwargs) -> pd.DataFrame:
     raw = _clean_str_cols(raw.copy())
+    if schema == "C":
+        return normalize_schema_c(raw, month, kwargs["returned_ids"])
     return NORMALIZERS[schema](raw, month)
