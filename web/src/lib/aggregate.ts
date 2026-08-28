@@ -3,7 +3,14 @@ import { RawRecord, MONTH_LABELS } from "./types";
 export function demoData(): RawRecord[] {
   const months = Object.keys(MONTH_LABELS).slice(0, 8);
   const channels = ["Facebook", "CRM", "Shopee", "Lazada", "TikTok"];
-  const provinces = ["กรุงเทพฯ", "เชียงใหม่", "ขอนแก่น", "ชลบุรี", "สงขลา", "นครราชสีมา"];
+  const provinces: [string, string][] = [
+    ["กรุงเทพมหานคร", "Bangkok Metropolis"],
+    ["เชียงใหม่", "Chiang Mai"],
+    ["ขอนแก่น", "Khon Kaen"],
+    ["ชลบุรี", "Chon Buri"],
+    ["สงขลา", "Songkhla"],
+    ["นครราชสีมา", "Nakhon Ratchasima"],
+  ];
   const products = ["วิตามินซี", "คอลลาเจน", "โปรตีน", "น้ำมันปลา", "โพรไบโอติก"];
   let seed = 69;
   const rand = () => {
@@ -18,11 +25,13 @@ export function demoData(): RawRecord[] {
     for (let i = 0; i < n; i++) {
       const day = 1 + Math.floor(rand() * 27);
       const date = new Date(`${month}-${String(day).padStart(2, "0")}T00:00:00Z`);
+      const [p, geo] = pick(provinces);
       records.push({
         m: month,
         id: `DEMO-${month}-${String(i).padStart(4, "0")}`,
         c: pick(channels),
-        p: pick(provinces),
+        p,
+        geo,
         n: pick(products),
         v: 190 + Math.floor(rand() * 1400),
         t: date.toISOString(),
@@ -205,4 +214,28 @@ export function topByDimension(records: RawRecord[], dim: Dimension, limit = 8):
     .map(([name, { count, value }]) => ({ name, count, value }))
     .sort((a, b) => b.count - a.count)
     .slice(0, limit);
+}
+
+export interface ProvinceRow {
+  geo: string;
+  name: string;
+  count: number;
+  value: number;
+}
+
+// Grouped by `geo` (the key that matches thailand-provinces.geojson), but
+// labeled with the Thai display name — records with no geo match (garbled
+// province text) are excluded, since they can't be placed on the map.
+export function provinceBreakdown(records: RawRecord[]): ProvinceRow[] {
+  const map = new Map<string, { name: string; count: number; value: number }>();
+  for (const r of records) {
+    if (!r.geo) continue;
+    const cur = map.get(r.geo) ?? { name: r.p ?? r.geo, count: 0, value: 0 };
+    cur.count += 1;
+    cur.value += r.v ?? 0;
+    map.set(r.geo, cur);
+  }
+  return Array.from(map.entries())
+    .map(([geo, { name, count, value }]) => ({ geo, name, count, value }))
+    .sort((a, b) => b.count - a.count);
 }
