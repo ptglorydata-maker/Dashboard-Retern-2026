@@ -203,7 +203,7 @@ export default function Home() {
     <div className="min-h-screen flex">
       {/* Sidebar */}
       <aside
-        className="w-[280px] flex-shrink-0 p-6 text-white"
+        className="w-[280px] flex-shrink-0 p-6 text-white flex flex-col"
         style={{ background: "linear-gradient(180deg, #2b1a4a 0%, #4a1f5c 55%, #6d2568 100%)" }}
       >
         <div className="flex items-center gap-3 pb-5">
@@ -252,38 +252,42 @@ export default function Home() {
           ))}
         </select>
 
-        {session?.user?.email && (
-          <div className="mt-6 pt-4 border-t border-white/15">
-            <div className="text-xs text-white/60 truncate">เข้าสู่ระบบ: {session.user.email}</div>
-            <button
-              type="button"
-              onClick={() => signOut()}
-              className="mt-2 text-xs text-white/80 hover:text-white underline"
-            >
-              ออกจากระบบ
-            </button>
-          </div>
-        )}
-
-        {visitStats?.configured && (
-          <div className="mt-4 pt-3 border-t border-white/15">
-            <div className="text-xs text-white/60 mb-1.5">สถิติเข้าใช้งาน</div>
-            <div className="flex flex-col gap-1 text-xs text-white/90">
-              <div className="flex justify-between">
-                <span className="text-white/60">เดือนนี้</span>
-                <span className="font-semibold">{formatNumber(visitStats.monthly.at(-1)?.count ?? 0)} ครั้ง</span>
+        <div className="mt-auto pt-4 flex flex-col gap-4">
+          {visitStats?.configured && (
+            <div className="rounded-xl bg-white/8 border border-white/15 px-4 py-3">
+              <div className="text-[0.7rem] font-medium text-white/60 uppercase tracking-wide mb-2.5">
+                สถิติเข้าใช้งาน
               </div>
-              <div className="flex justify-between">
-                <span className="text-white/60">ไตรมาสนี้</span>
-                <span className="font-semibold">{formatNumber(visitStats.quarterly.at(-1)?.count ?? 0)} ครั้ง</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-white/60">ปีนี้</span>
-                <span className="font-semibold">{formatNumber(visitStats.yearly.at(-1)?.count ?? 0)} ครั้ง</span>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                {[
+                  { label: "เดือนนี้", value: visitStats.monthly.at(-1)?.count ?? 0 },
+                  { label: "ไตรมาสนี้", value: visitStats.quarterly.at(-1)?.count ?? 0 },
+                  { label: "ปีนี้", value: visitStats.yearly.at(-1)?.count ?? 0 },
+                ].map((row) => (
+                  <div key={row.label} className="flex flex-col gap-0.5">
+                    <div className="text-sm font-bold" style={{ color: COLORS.pink }}>
+                      {formatNumber(row.value)}
+                    </div>
+                    <div className="text-[0.65rem] text-white/55 leading-tight">{row.label}</div>
+                  </div>
+                ))}
               </div>
             </div>
-          </div>
-        )}
+          )}
+
+          {session?.user?.email && (
+            <div className="pt-3 border-t border-white/15">
+              <div className="text-xs text-white/60 truncate">เข้าสู่ระบบ: {session.user.email}</div>
+              <button
+                type="button"
+                onClick={() => signOut()}
+                className="mt-2 text-xs text-white/80 hover:text-white underline"
+              >
+                ออกจากระบบ
+              </button>
+            </div>
+          )}
+        </div>
       </aside>
 
       {/* Main */}
