@@ -1,4 +1,85 @@
-import { RawRecord, MONTH_LABELS } from "./types";
+import { RawRecord, MONTH_LABELS, OrderTotals, OrderTotalsOverall, DimBreakdownRow } from "./types";
+
+// Picks the all-orders denominator row matching the sidebar's selected
+// month ("ทั้งหมด" -> overall totals, else that month's row from byMonth).
+export function pickTotals(totals: OrderTotals, selectedMonth: string): OrderTotalsOverall {
+  if (selectedMonth === "ทั้งหมด") return totals.overall;
+  const row = totals.byMonth.find((r) => r.key === selectedMonth);
+  if (!row) return totals.overall;
+  return {
+    orders: row.orders,
+    value: row.value,
+    returned: row.returned,
+    returned_value: row.returned_value,
+    cod_orders: row.cod_orders,
+    cod_value: 0,
+    cod_returned: row.cod_returned,
+    cod_returned_value: 0,
+  };
+}
+
+export interface RateCards {
+  returnRateUnits: number;
+  returnRateValue: number;
+  codRejectionRate: number;
+  codOrders: number;
+  financialLoss: number;
+}
+
+export function computeRateCards(t: OrderTotalsOverall): RateCards {
+  return {
+    returnRateUnits: t.orders ? (t.returned / t.orders) * 100 : 0,
+    returnRateValue: t.value ? (t.returned_value / t.value) * 100 : 0,
+    codRejectionRate: t.cod_orders ? (t.cod_returned / t.cod_orders) * 100 : 0,
+    codOrders: t.cod_orders,
+    financialLoss: t.returned_value,
+  };
+}
+
+export interface RateRow {
+  key: string;
+  label: string;
+  orders: number;
+  returned: number;
+  returnRatePct: number;
+}
+
+// Return-rate ranking for a dimension breakdown (courier / admin / SKU),
+// restricted to groups with at least `minOrders` orders so low-volume
+// noise (e.g. an admin who closed 3 sales) doesn't dominate the ranking.
+export function rateRanking(rows: DimBreakdownRow[], minOrders: number, limit = 10): RateRow[] {
+  return rows
+    .filter((r) => r.orders >= minOrders)
+    .map((r) => ({
+      key: r.key,
+      label: r.label,
+      orders: r.orders,
+      returned: r.returned,
+      returnRatePct: r.orders ? (r.returned / r.orders) * 100 : 0,
+    }))
+    .sort((a, b) => b.returnRatePct - a.returnRatePct)
+    .slice(0, limit);
+}
+
+export interface MonthlyRateRow {
+  month: string;
+  label: string;
+  orders: number;
+  returned: number;
+  returnRatePct: number;
+}
+
+export function monthlyRateTrend(byMonth: DimBreakdownRow[]): MonthlyRateRow[] {
+  return [...byMonth]
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .map((r) => ({
+      month: r.key,
+      label: MONTH_LABELS[r.key] ?? r.key,
+      orders: r.orders,
+      returned: r.returned,
+      returnRatePct: r.orders ? (r.returned / r.orders) * 100 : 0,
+    }));
+}
 
 export function demoData(): RawRecord[] {
   const months = Object.keys(MONTH_LABELS).slice(0, 8);

@@ -14,12 +14,14 @@ Usage:
 
 import json
 import os
+import re
 
 import pandas as pd
 
 HERE = os.path.dirname(__file__)
 COMBINED_CSV = os.path.join(HERE, "output", "returns_2569_combined.csv")
 OUTPUT_JSON = os.path.join(HERE, "..", "web", "public", "data", "records.json")
+TOTALS_JSON = os.path.join(HERE, "..", "web", "public", "data", "order_totals.json")
 
 # Same mapping as dashboard/app.py's CHANNEL_DISPLAY_MAP.
 CHANNEL_DISPLAY_MAP = {"MiniShop": "Facebook", "shopss": "CRM"}
@@ -84,17 +86,57 @@ def normalize_province(raw: str) -> tuple[str, str | None]:
     return (name if geo_name else raw.strip()), geo_name
 
 
+def normalize_courier(raw) -> str | None:
+    """Collapses per-branch courier codes (e.g. 'Flash Express TH_14',
+    'Flash Express TH_8') into one name per real courier company, so SLA
+    comparisons aren't split across dozens of near-duplicate categories."""
+    if pd.isna(raw):
+        return None
+    name = re.sub(r"_\d+$", "", str(raw).strip())
+    if name.startswith("Flash Express"):
+        name = "Flash Express"
+    return name
+
+
+def is_cod(payment_method) -> bool:
+    return not pd.isna(payment_method) and "cod" in str(payment_method).lower()
+
+
+def dim_breakdown(df: pd.DataFrame, col: str, label_col: str | None = None) -> list[dict]:
+    """Orders/returned counts + value, grouped by `col` (already normalized).
+    Rows with a null group value are skipped — 'unassigned' isn't a
+    meaningful comparison bucket for courier/admin SLA tables."""
+    out = []
+    for key, g in df.groupby(col, dropna=True):
+        label = g[label_col].mode().iat[0] if label_col else key
+        returned = g[g["is_returned"] == True]  # noqa: E712
+        cod = g[g["is_cod"]]
+        cod_returned = cod[cod["is_returned"] == True]  # noqa: E712
+        out.append({
+            "key": str(key),
+            "label": str(label),
+            "orders": int(len(g)),
+            "value": float(g["product_price"].sum(skipna=True)),
+            "returned": int(len(returned)),
+            "returned_value": float(returned["product_price"].sum(skipna=True)),
+            "cod_orders": int(len(cod)),
+            "cod_returned": int(len(cod_returned)),
+        })
+    return sorted(out, key=lambda r: r["orders"], reverse=True)
+
+
 def main() -> None:
     if not os.path.exists(COMBINED_CSV):
         raise SystemExit(f"Not found: {COMBINED_CSV} — run pipeline/combine_returns.py first.")
 
     df = pd.read_csv(COMBINED_CSV, low_memory=False)
     df["order_time"] = pd.to_datetime(df["order_time"], errors="coerce")
-    df = df[df["is_returned"] == True]  # noqa: E712
     df["sales_channel"] = df["sales_channel"].replace(CHANNEL_DISPLAY_MAP)
 
+    returned_df = df[df["is_returned"] == True].copy()  # noqa: E712
+
     records = []
-    for row in df.itertuples(index=False):
+    for row in returned_df.itertuples(index=False):
         province, geo = (None, None) if pd.isna(row.province) else normalize_province(str(row.province))
         records.append({
             "m": row.month,
@@ -110,8 +152,53 @@ def main() -> None:
     os.makedirs(os.path.dirname(OUTPUT_JSON), exist_ok=True)
     with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
         json.dump(records, f, ensure_ascii=False, separators=(",", ":"))
-
     print(f"Wrote {len(records)} return records to {OUTPUT_JSON}")
+
+    # --- order_totals.json: all-orders denominators for rate-based metrics
+    # (Return Rate, COD Rejection Rate, Courier SLA, Sales Admin comparison,
+    # Return Rate by SKU) that can't be computed from the returned-only
+    # records.json above.
+    df["is_cod"] = df["payment_method"].apply(is_cod)
+    df["courier_norm"] = df["transport_company"].apply(normalize_courier)
+    cod_df = df[df["is_cod"]]
+    returned = df[df["is_returned"] == True]  # noqa: E712
+    cod_returned = cod_df[cod_df["is_returned"] == True]  # noqa: E712
+
+    overall = {
+        "orders": int(len(df)),
+        "value": float(df["product_price"].sum(skipna=True)),
+        "returned": int(len(returned)),
+        "returned_value": float(returned["product_price"].sum(skipna=True)),
+        "cod_orders": int(len(cod_df)),
+        "cod_value": float(cod_df["product_price"].sum(skipna=True)),
+        "cod_returned": int(len(cod_returned)),
+        "cod_returned_value": float(cod_returned["product_price"].sum(skipna=True)),
+    }
+
+    by_month = dim_breakdown(df, "month")
+    by_channel = dim_breakdown(df, "sales_channel")
+    by_courier = dim_breakdown(df, "courier_norm")
+    by_admin = dim_breakdown(df, "salesperson")
+
+    # SKU breakdown: only products that had at least one return — a rate
+    # table for all 888 SKUs (most with zero returns) isn't useful and
+    # would bloat the file.
+    returned_codes = set(returned["product_code"].dropna().unique())
+    sku_df = df[df["product_code"].isin(returned_codes)]
+    by_sku = dim_breakdown(sku_df, "product_code", label_col="product_name")
+
+    totals = {
+        "overall": overall,
+        "byMonth": by_month,
+        "byChannel": by_channel,
+        "byCourier": by_courier,
+        "byAdmin": by_admin,
+        "bySku": by_sku,
+    }
+    os.makedirs(os.path.dirname(TOTALS_JSON), exist_ok=True)
+    with open(TOTALS_JSON, "w", encoding="utf-8") as f:
+        json.dump(totals, f, ensure_ascii=False, separators=(",", ":"))
+    print(f"Wrote order totals ({overall['orders']} orders) to {TOTALS_JSON}")
 
 
 if __name__ == "__main__":
