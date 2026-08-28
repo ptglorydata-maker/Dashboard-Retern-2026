@@ -33,7 +33,7 @@ import {
 } from "@/lib/aggregate";
 import { ThailandMap } from "@/components/ThailandMap";
 
-const MENU_ITEMS = ["ภาพรวม", "รายเดือน", "ช่องทางขาย", "สินค้า", "สถิติเข้าใช้งาน"];
+const MENU_ITEMS = ["ภาพรวม", "รายเดือน", "ช่องทางขาย", "สินค้า"];
 const DONUT_PALETTE = [COLORS.pink, COLORS.purple, COLORS.blue, COLORS.orange];
 
 function formatNumber(n: number) {
@@ -262,6 +262,26 @@ export default function Home() {
             >
               ออกจากระบบ
             </button>
+          </div>
+        )}
+
+        {visitStats?.configured && (
+          <div className="mt-4 pt-3 border-t border-white/15">
+            <div className="text-xs text-white/60 mb-1.5">สถิติเข้าใช้งาน</div>
+            <div className="flex flex-col gap-1 text-xs text-white/90">
+              <div className="flex justify-between">
+                <span className="text-white/60">เดือนนี้</span>
+                <span className="font-semibold">{formatNumber(visitStats.monthly.at(-1)?.count ?? 0)} ครั้ง</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/60">ไตรมาสนี้</span>
+                <span className="font-semibold">{formatNumber(visitStats.quarterly.at(-1)?.count ?? 0)} ครั้ง</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/60">ปีนี้</span>
+                <span className="font-semibold">{formatNumber(visitStats.yearly.at(-1)?.count ?? 0)} ครั้ง</span>
+              </div>
+            </div>
           </div>
         )}
       </aside>
@@ -630,65 +650,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Visit stats tab */}
-        {activeMenu === "สถิติเข้าใช้งาน" && (
-          <div className="mt-5">
-            {!visitStats || !visitStats.configured ? (
-              <div className="panel">
-                <p className="text-sm text-gray-500">
-                  {!visitStats ? "กำลังโหลดสถิติ..." : "ยังไม่ได้ตั้งค่า VISIT_LOG_SPREADSHEET_ID — ยังไม่มีข้อมูลสถิติการเข้าใช้งาน"}
-                </p>
-              </div>
-            ) : (
-              <>
-                <div className="grid grid-cols-3 gap-5">
-                  <KpiCard
-                    label="เดือนนี้"
-                    value={formatNumber(visitStats.monthly.at(-1)?.count ?? 0)}
-                    icon="👁️"
-                    gradientFrom={COLORS.pink}
-                    gradientTo={COLORS.pinkDark}
-                    glow="rgba(219,39,119,0.55)"
-                    sub={<span className="kpi-delta">{visitStats.monthly.at(-1)?.label ?? "-"}</span>}
-                  />
-                  <KpiCard
-                    label="ไตรมาสนี้"
-                    value={formatNumber(visitStats.quarterly.at(-1)?.count ?? 0)}
-                    icon="📅"
-                    gradientFrom={COLORS.purple}
-                    gradientTo={COLORS.purpleDark}
-                    glow="rgba(124,58,237,0.55)"
-                    sub={<span className="kpi-delta">{visitStats.quarterly.at(-1)?.label ?? "-"}</span>}
-                  />
-                  <KpiCard
-                    label="ปีนี้"
-                    value={formatNumber(visitStats.yearly.at(-1)?.count ?? 0)}
-                    icon="📈"
-                    gradientFrom={COLORS.blue}
-                    gradientTo={COLORS.blueDark}
-                    glow="rgba(37,99,235,0.55)"
-                    sub={<span className="kpi-delta">{visitStats.yearly.at(-1)?.label ?? "-"} · รวมทั้งหมด {formatNumber(visitStats.total)}</span>}
-                  />
-                </div>
-                <div className="panel mt-5">
-                  <h4 className="font-semibold text-[1rem] m-0">การเข้าใช้งานรายเดือน</h4>
-                  <p className="text-[0.78rem] text-gray-500 mt-0.5 mb-2">จำนวนครั้งที่มีคนเข้าดู dashboard ต่อเดือน</p>
-                  <div style={{ width: "100%", height: 260 }}>
-                    <ResponsiveContainer>
-                      <BarChart data={visitStats.monthly}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f1f6" />
-                        <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                        <Tooltip formatter={(v) => [`${formatNumber(Number(v))} ครั้ง`, "เข้าชม"]} />
-                        <Bar dataKey="count" radius={[6, 6, 0, 0]} fill={COLORS.pink} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        )}
       </main>
 
       {kpiModal && (
