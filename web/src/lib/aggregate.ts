@@ -99,6 +99,7 @@ export function demoData(): RawRecord[] {
     ["นครราชสีมา", "Nakhon Ratchasima"],
   ];
   const products = ["วิตามินซี", "คอลลาเจน", "โปรตีน", "น้ำมันปลา", "โพรไบโอติก"];
+  const admins = ["แอดมินเอ", "แอดมินบี", "แอดมินซี", "แอดมินดี"];
   let seed = 69;
   const rand = () => {
     seed = (seed * 1103515245 + 12345) & 0x7fffffff;
@@ -122,6 +123,7 @@ export function demoData(): RawRecord[] {
         n: pick(products),
         v: 190 + Math.floor(rand() * 1400),
         t: date.toISOString(),
+        a: pick(admins),
       });
     }
   });
@@ -331,4 +333,38 @@ export function provinceBreakdown(records: RawRecord[]): ProvinceRow[] {
   return Array.from(map.entries())
     .map(([geo, { name, count, value }]) => ({ geo, name, count, value }))
     .sort((a, b) => b.count - a.count);
+}
+
+// Pivoted monthly return-count trend, one column per channel — for
+// comparing whether each sales channel's returns are trending up or down.
+// Uses the full (unfiltered) record set so the trend always covers every
+// month regardless of the sidebar's month filter. Limited to the top
+// `limit` channels by total volume so the chart doesn't get cluttered with
+// long-tail channels.
+export function channelMonthlyTrend(
+  all: RawRecord[],
+  limit = 6
+): { rows: Record<string, string | number>[]; channels: string[] } {
+  const totalByChannel = countBy(all, (r) => r.c ?? "ไม่ระบุ");
+  const channels = totalByChannel.slice(0, limit).map(([name]) => name);
+  const channelSet = new Set(channels);
+
+  const months = Array.from(new Set(all.map((r) => r.m))).sort();
+  const counts = new Map<string, Map<string, number>>();
+  for (const r of all) {
+    const ch = r.c ?? "ไม่ระบุ";
+    if (!channelSet.has(ch)) continue;
+    const byChannel = counts.get(r.m) ?? new Map<string, number>();
+    byChannel.set(ch, (byChannel.get(ch) ?? 0) + 1);
+    counts.set(r.m, byChannel);
+  }
+
+  const rows = months.map((m) => {
+    const row: Record<string, string | number> = { month: m, label: MONTH_LABELS[m] ?? m };
+    const byChannel = counts.get(m);
+    for (const ch of channels) row[ch] = byChannel?.get(ch) ?? 0;
+    return row;
+  });
+
+  return { rows, channels };
 }

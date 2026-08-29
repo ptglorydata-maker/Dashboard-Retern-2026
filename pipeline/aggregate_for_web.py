@@ -138,6 +138,9 @@ def main() -> None:
     records = []
     for row in returned_df.itertuples(index=False):
         province, geo = (None, None) if pd.isna(row.province) else normalize_province(str(row.province))
+        salesperson = None if pd.isna(row.salesperson) else str(row.salesperson)
+        if salesperson and salesperson.startswith("#"):
+            salesperson = None  # broken-formula values like "#REF!" — see PR #19
         records.append({
             "m": row.month,
             "id": None if pd.isna(row.internal_order_id) else str(row.internal_order_id),
@@ -147,6 +150,7 @@ def main() -> None:
             "n": None if pd.isna(row.product_name) else str(row.product_name),
             "v": None if pd.isna(row.product_price) else float(row.product_price),
             "t": None if pd.isna(row.order_time) else row.order_time.isoformat(),
+            "a": salesperson,
         })
 
     os.makedirs(os.path.dirname(OUTPUT_JSON), exist_ok=True)

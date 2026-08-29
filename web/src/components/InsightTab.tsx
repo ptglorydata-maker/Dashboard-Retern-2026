@@ -97,28 +97,31 @@ export function InsightTab({
       {d ? (
         <>
           <div className="panel">
-            <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="flex items-start justify-between gap-6 flex-wrap">
               <div className="text-[0.85rem] font-semibold text-amber-300">เรื่องที่ต้องโฟกัส</div>
-              <div className="flex gap-7 text-right flex-shrink-0 pr-1">
+              <div className="flex gap-8 text-right flex-shrink-0 pr-1">
                 <div>
-                  <div className="text-[0.75rem] text-white/50 uppercase">ยอดขายรวม</div>
-                  <div className="text-xl font-bold text-white">{formatBaht(d.totalSales)}</div>
+                  <div className="text-[0.78rem] text-white/50 uppercase">ยอดขายรวม</div>
+                  <div className="text-[2rem] font-bold text-white leading-tight">{formatBaht(d.totalSales)}</div>
                 </div>
                 <div>
-                  <div className="text-[0.75rem] text-white/50 uppercase">มูลค่าตีกลับ</div>
-                  <div className="text-xl font-bold" style={{ color: COLORS.red }}>{formatBaht(d.totalReturnValue)}</div>
+                  <div className="text-[0.78rem] text-white/50 uppercase">มูลค่าตีกลับ</div>
+                  <div className="text-[2rem] font-bold leading-tight" style={{ color: COLORS.red }}>{formatBaht(d.totalReturnValue)}</div>
                 </div>
                 <div>
-                  <div className="text-[0.75rem] text-white/50 uppercase">อัตราตีกลับ</div>
-                  <div className="text-xl font-bold" style={{ color: COLORS.orange }}>{d.returnRatePct.toFixed(2)}%</div>
+                  <div className="text-[0.78rem] text-white/50 uppercase">อัตราตีกลับ</div>
+                  <div className="text-[2rem] font-bold leading-tight" style={{ color: COLORS.orange }}>{d.returnRatePct.toFixed(2)}%</div>
                 </div>
               </div>
             </div>
-            <ul className="text-[0.92rem] text-white/80 mt-2 flex flex-col gap-1 list-disc list-inside">
+            <ul className="text-[0.92rem] text-white/80 mt-3 flex flex-col gap-1 list-disc list-inside">
               {d.focusItems.map((item, i) => (
                 <li key={i}>{item}</li>
               ))}
             </ul>
+            <div className="mt-3 pt-3 border-t border-white/10 text-[0.78rem] text-white/45 leading-relaxed">
+              หมายเหตุ: {d.totalsNote}
+            </div>
           </div>
 
           <div className="grid grid-cols-3 gap-5">

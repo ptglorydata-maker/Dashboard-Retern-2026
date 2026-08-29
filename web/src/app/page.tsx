@@ -33,6 +33,7 @@ import {
   computeRateCards,
   rateRanking,
   monthlyRateTrend,
+  channelMonthlyTrend,
   DIMENSION_LABELS,
   Dimension,
 } from "@/lib/aggregate";
@@ -131,6 +132,9 @@ export default function Home() {
   const [mapChannel, setMapChannel] = useState<string>("ทั้งหมด");
   const [mapSort, setMapSort] = useState<"มากสุด" | "น้อยสุด">("มากสุด");
   const [kpiModal, setKpiModal] = useState<"count" | "value" | "avg" | "channel" | null>(null);
+  const [provinceModalGeo, setProvinceModalGeo] = useState<string | null>(null);
+  const [productModalName, setProductModalName] = useState<string | null>(null);
+  const [channelTabSelected, setChannelTabSelected] = useState<string>("ทั้งหมด");
   const [compareModalOpen, setCompareModalOpen] = useState(false);
   const [productSortDir, setProductSortDir] = useState<"desc" | "asc">("desc");
   const [adminSortDir, setAdminSortDir] = useState<"desc" | "asc">("desc");
@@ -209,6 +213,17 @@ export default function Home() {
 
   const monthlyRows = useMemo(() => (allRecords ? monthlySummary(allRecords) : []), [allRecords]);
   const allChannels = useMemo(() => channelBreakdown(filtered), [filtered]);
+  const channelComparisonTrend = useMemo(() => (allRecords ? channelMonthlyTrend(allRecords) : { rows: [], channels: [] }), [allRecords]);
+  const channelTabRecords = useMemo(
+    () => (channelTabSelected === "ทั้งหมด" ? filtered : filtered.filter((r) => r.c === channelTabSelected)),
+    [filtered, channelTabSelected]
+  );
+  const channelTabTrend = useMemo(
+    () => (allRecords && channelTabSelected !== "ทั้งหมด" ? monthlyTrend(allRecords.filter((r) => r.c === channelTabSelected)) : []),
+    [allRecords, channelTabSelected]
+  );
+  const channelTabProducts = useMemo(() => topByDimension(channelTabRecords, "n", 8), [channelTabRecords]);
+  const channelTabProvinces = useMemo(() => provinceBreakdown(channelTabRecords).slice(0, 8), [channelTabRecords]);
 
   const mapChannels = useMemo(
     () => (allRecords ? Array.from(new Set(allRecords.map((r) => r.c).filter((c): c is string => !!c))).sort() : []),
@@ -222,10 +237,43 @@ export default function Home() {
     const rows = provinceBreakdown(mapRecords);
     return mapSort === "มากสุด" ? rows : [...rows].reverse();
   }, [mapRecords, mapSort]);
-  const compareRows = useMemo(() => topByDimension(filtered, compareDim, 10), [filtered, compareDim]);
+  const provinceModalRecords = useMemo(
+    () => (provinceModalGeo ? mapRecords.filter((r) => r.geo === provinceModalGeo) : []),
+    [mapRecords, provinceModalGeo]
+  );
+  const provinceModalProducts = useMemo(() => topByDimension(provinceModalRecords, "n", 10), [provinceModalRecords]);
+  const provinceModalChannels = useMemo(() => channelBreakdown(provinceModalRecords), [provinceModalRecords]);
+  const provinceModalTotalValue = useMemo(() => provinceModalRecords.reduce((s, r) => s + (r.v ?? 0), 0), [provinceModalRecords]);
+  const provinceModalName = useMemo(
+    () => provinceRows.find((r) => r.geo === provinceModalGeo)?.name ?? provinceModalGeo ?? "",
+    [provinceRows, provinceModalGeo]
+  );
+  const compareRows = useMemo(() => topByDimension(filtered, compareDim, 15), [filtered, compareDim]);
   const compareAllRows = useMemo(() => topByDimension(filtered, compareDim, Infinity), [filtered, compareDim]);
   const productsAll = useMemo(() => topByDimension(filtered, "n", Infinity, productSortDir), [filtered, productSortDir]);
   const productsTop = useMemo(() => productsAll.slice(0, 15), [productsAll]);
+
+  const productModalRecords = useMemo(
+    () => (productModalName ? filtered.filter((r) => r.n === productModalName) : []),
+    [filtered, productModalName]
+  );
+  const productModalChannels = useMemo(() => channelBreakdown(productModalRecords), [productModalRecords]);
+  const productModalProvinces = useMemo(() => provinceBreakdown(productModalRecords).slice(0, 8), [productModalRecords]);
+  const productModalAdmins = useMemo(() => {
+    const map = new Map<string, { count: number; value: number }>();
+    for (const r of productModalRecords) {
+      const key = r.a ?? "ไม่ระบุ";
+      const cur = map.get(key) ?? { count: 0, value: 0 };
+      cur.count += 1;
+      cur.value += r.v ?? 0;
+      map.set(key, cur);
+    }
+    return Array.from(map.entries())
+      .map(([name, { count, value }]) => ({ name, count, value }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+  }, [productModalRecords]);
+  const productModalTotalValue = useMemo(() => productModalRecords.reduce((s, r) => s + (r.v ?? 0), 0), [productModalRecords]);
 
   const rateCards = useMemo(
     () => (orderTotals ? computeRateCards(pickTotals(orderTotals, selectedMonth)) : null),
@@ -525,7 +573,7 @@ export default function Home() {
             >
               ดูรายการทั้งหมด ({DIMENSION_LABELS[compareDim]}) →
             </button>
-            <div style={{ width: "100%", height: 280 }}>
+            <div style={{ width: "100%", height: 420 }}>
               <ResponsiveContainer>
                 <BarChart data={compareRows} layout="vertical" margin={{ left: 4, right: 40, top: 4, bottom: 4 }}>
                   <XAxis type="number" hide />
@@ -581,18 +629,23 @@ export default function Home() {
               </div>
             </div>
             <div className="flex gap-3 mt-1">
-              <div className="flex-1 flex justify-center min-w-0">
-                <ThailandMap data={provinceRows} />
+              <div className="flex-1 flex justify-start min-w-0">
+                <ThailandMap data={provinceRows} onSelectProvince={setProvinceModalGeo} />
               </div>
               <div className="w-[260px] flex-shrink-0 overflow-y-auto pr-1" style={{ maxHeight: 480 }}>
                 {provinceRows.map((row, i) => (
-                  <div key={row.geo} className="flex items-center justify-between gap-2 text-[0.8rem] py-1.5 border-b border-white/5 last:border-0">
+                  <button
+                    type="button"
+                    key={row.geo}
+                    onClick={() => setProvinceModalGeo(row.geo)}
+                    className="w-full flex items-center justify-between gap-2 text-[0.8rem] py-1.5 border-b border-white/5 last:border-0 text-left hover:bg-white/5 rounded px-1 -mx-1"
+                  >
                     <span className="flex items-center gap-2 min-w-0">
                       <span className="text-white/35 w-5 flex-shrink-0">{i + 1}</span>
                       <span className="truncate">{row.name}</span>
                     </span>
                     <span className="font-semibold flex-shrink-0 text-right">{formatNumber(row.count)}</span>
-                  </div>
+                  </button>
                 ))}
                 {provinceRows.length === 0 && <p className="text-xs text-white/35 mt-4">ไม่มีข้อมูล</p>}
               </div>
@@ -738,6 +791,64 @@ export default function Home() {
 
         {/* Channel tab */}
         {activeMenu === "ช่องทางขาย" && (
+          <>
+          <div className="panel mt-5">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <h4 className="font-semibold text-[1rem] m-0">เลือกช่องทางเพื่อดูรายละเอียดเจาะจง</h4>
+                <p className="text-[0.78rem] text-white/50 mt-0.5">เลือก &quot;ทั้งหมด&quot; เพื่อดูภาพรวมและกราฟเปรียบเทียบทุกช่องทาง</p>
+              </div>
+              <select
+                value={channelTabSelected}
+                onChange={(e) => setChannelTabSelected(e.target.value)}
+                className="text-xs border border-white/10 bg-white/5 text-white/80 rounded-lg px-2 py-1.5 flex-shrink-0 [&>option]:bg-white [&>option]:text-black"
+              >
+                <option value="ทั้งหมด">ทุกช่องทาง</option>
+                {mapChannels.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="panel mt-5">
+            <h4 className="font-semibold text-[1rem] m-0">เปรียบเทียบแนวโน้มยอดตีกลับรายช่องทาง</h4>
+            <p className="text-[0.78rem] text-white/50 mt-0.5 mb-2">
+              จำนวนยอดตีกลับต่อเดือน แยกตามช่องทาง (Top {channelComparisonTrend.channels.length} ช่องทางตามปริมาณ) — ดูได้ว่าช่องทางไหนดีขึ้นหรือแย่ลง
+            </p>
+            <div style={{ width: "100%", height: 280 }}>
+              <ResponsiveContainer>
+                <LineChart data={channelComparisonTrend.rows} margin={{ left: 4, right: 4, top: 4, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.08)" />
+                  <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                  <Tooltip {...TOOLTIP_STYLE} />
+                  {channelComparisonTrend.channels.map((ch, i) => (
+                    <Line
+                      key={ch}
+                      type="monotone"
+                      dataKey={ch}
+                      stroke={DONUT_PALETTE[i % DONUT_PALETTE.length]}
+                      strokeWidth={2.5}
+                      dot={{ r: 3 }}
+                      name={ch}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2">
+              {channelComparisonTrend.channels.map((ch, i) => (
+                <span key={ch} className="flex items-center gap-1.5 text-[0.75rem] text-white/60">
+                  <span className="w-2 h-2 rounded-full inline-block" style={{ background: DONUT_PALETTE[i % DONUT_PALETTE.length] }} />
+                  {ch}
+                </span>
+              ))}
+            </div>
+          </div>
+
           <div className="grid grid-cols-3 gap-5 mt-5">
             <div className="panel">
               <h4 className="font-semibold text-[1rem] m-0">สัดส่วนช่องทางตีกลับ</h4>
@@ -797,7 +908,11 @@ export default function Home() {
                   </thead>
                   <tbody>
                     {allChannels.map((row, i) => (
-                      <tr key={row.name} className="border-b border-white/5 last:border-0">
+                      <tr
+                        key={row.name}
+                        onClick={() => setChannelTabSelected(row.name)}
+                        className="border-b border-white/5 last:border-0 cursor-pointer hover:bg-white/5"
+                      >
                         <td className="py-2 pr-3 flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full inline-block" style={{ background: DONUT_PALETTE[i % DONUT_PALETTE.length] }} />
                           {row.name}
@@ -812,6 +927,63 @@ export default function Home() {
               </div>
             </div>
           </div>
+
+          {channelTabSelected !== "ทั้งหมด" && (
+            <div className="grid grid-cols-3 gap-5 mt-5">
+              <div className="col-span-2 panel">
+                <h4 className="font-semibold text-[1rem] m-0">แนวโน้มยอดตีกลับ — {channelTabSelected}</h4>
+                <p className="text-[0.78rem] text-white/50 mt-0.5 mb-2">ทุกเดือนที่มีข้อมูล</p>
+                <div style={{ width: "100%", height: 220 }}>
+                  <ResponsiveContainer>
+                    <AreaChart data={channelTabTrend}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.08)" />
+                      <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                      <Tooltip formatter={(v) => [`${formatNumber(Number(v))} รายการ`, ""]} {...TOOLTIP_STYLE} />
+                      <Area type="monotone" dataKey="count" stroke={COLORS.cyan} strokeWidth={3} fill={COLORS.cyan} fillOpacity={0.15} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+              <div className="panel">
+                <h4 className="font-semibold text-[1rem] m-0">สรุป — {channelTabSelected}</h4>
+                <p className="text-[0.78rem] text-white/50 mt-0.5 mb-2">
+                  {selectedMonth === "ทั้งหมด" ? "ทั้งหมด" : MONTH_LABELS[selectedMonth] ?? selectedMonth}
+                </p>
+                <div className="text-[1.6rem] font-bold" style={{ color: COLORS.teal }}>{formatNumber(channelTabRecords.length)} รายการ</div>
+                <div className="text-[0.85rem] text-white/60 mt-1">
+                  มูลค่ารวม {formatBaht(channelTabRecords.reduce((s, r) => s + (r.v ?? 0), 0))}
+                </div>
+              </div>
+              <div className="panel">
+                <h4 className="font-semibold text-[1rem] m-0">สินค้าตีกลับสูงสุด</h4>
+                <p className="text-[0.78rem] text-white/50 mt-0.5 mb-2">Top 8 — {channelTabSelected}</p>
+                <div className="flex flex-col gap-1.5">
+                  {channelTabProducts.map((row, i) => (
+                    <div key={row.name} className="flex justify-between text-[0.8rem]">
+                      <span className="text-white/70 truncate">{i + 1}. {row.name}</span>
+                      <b className="flex-shrink-0 ml-2">{formatNumber(row.count)}</b>
+                    </div>
+                  ))}
+                  {channelTabProducts.length === 0 && <p className="text-xs text-white/35">ไม่มีข้อมูล</p>}
+                </div>
+              </div>
+              <div className="col-span-2 panel">
+                <h4 className="font-semibold text-[1rem] m-0">จังหวัดตีกลับสูงสุด</h4>
+                <p className="text-[0.78rem] text-white/50 mt-0.5 mb-2">Top 8 — {channelTabSelected}</p>
+                <div className="flex flex-col gap-1.5">
+                  {channelTabProvinces.map((row, i) => (
+                    <div key={row.geo} className="flex justify-between text-[0.8rem]">
+                      <span className="text-white/70 truncate">{i + 1}. {row.name}</span>
+                      <b className="flex-shrink-0 ml-2">{formatNumber(row.count)} · {formatBaht(row.value)}</b>
+                    </div>
+                  ))}
+                  {channelTabProvinces.length === 0 && <p className="text-xs text-white/35">ไม่มีข้อมูล</p>}
+                </div>
+              </div>
+            </div>
+          )}
+          </>
         )}
 
         {/* Product tab */}
@@ -847,7 +1019,7 @@ export default function Home() {
               <div className="flex items-start justify-between gap-2 flex-wrap">
                 <div>
                   <h4 className="font-semibold text-[1rem] m-0">รายการสินค้าทั้งหมด</h4>
-                  <p className="text-[0.78rem] text-white/50 mt-0.5 mb-2">ทั้งหมด {productsAll.length} รายการ</p>
+                  <p className="text-[0.78rem] text-white/50 mt-0.5 mb-2">ทั้งหมด {productsAll.length} รายการ · คลิกแถวเพื่อดูรายละเอียด</p>
                 </div>
                 <select
                   value={productSortDir}
@@ -870,7 +1042,11 @@ export default function Home() {
                   </thead>
                   <tbody>
                     {productsAll.map((row, i) => (
-                      <tr key={row.name} className="border-b border-white/5 last:border-0">
+                      <tr
+                        key={row.name}
+                        onClick={() => setProductModalName(row.name)}
+                        className="border-b border-white/5 last:border-0 cursor-pointer hover:bg-white/5"
+                      >
                         <td className="py-2 pr-3 text-white/35">{i + 1}</td>
                         <td className="py-2 pr-3">{row.name}</td>
                         <td className="py-2 pr-3 text-right">{formatNumber(row.count)}</td>
@@ -1191,6 +1367,194 @@ export default function Home() {
                     <td className="py-2 text-right">{formatBaht(row.value)}</td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {provinceModalGeo && (
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+          onClick={() => setProvinceModalGeo(null)}
+        >
+          <div
+            className="bg-[#121a2e] border border-white/10 rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="font-semibold text-lg m-0">{provinceModalName}</h3>
+                <p className="text-xs text-white/50 mt-1">
+                  {mapChannel === "ทั้งหมด" ? "ทุกช่องทาง" : mapChannel} ·{" "}
+                  {selectedMonth === "ทั้งหมด" ? "ทั้งหมด" : MONTH_LABELS[selectedMonth] ?? selectedMonth}
+                </p>
+              </div>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setProvinceModalGeo(null)}
+                  className="text-[0.8rem] text-white/60 hover:text-white underline"
+                >
+                  ← ย้อนกลับ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProvinceModalGeo(null)}
+                  className="text-white/35 hover:text-white text-xl leading-none px-2"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mb-5">
+              <div className="rounded-xl bg-white/5 border border-white/10 px-4 py-3">
+                <div className="text-[0.72rem] text-white/50 uppercase">ยอดตีกลับ</div>
+                <div className="text-2xl font-bold" style={{ color: COLORS.teal }}>{formatNumber(provinceModalRecords.length)} ออเดอร์</div>
+              </div>
+              <div className="rounded-xl bg-white/5 border border-white/10 px-4 py-3">
+                <div className="text-[0.72rem] text-white/50 uppercase">มูลค่ารวม</div>
+                <div className="text-2xl font-bold" style={{ color: COLORS.purple }}>{formatBaht(provinceModalTotalValue)}</div>
+              </div>
+            </div>
+
+            <h4 className="font-semibold text-[0.95rem] m-0 mb-2">แยกตามช่องทาง</h4>
+            <table className="w-full text-sm mb-5">
+              <tbody>
+                {provinceModalChannels.map((row) => (
+                  <tr key={row.name} className="border-b border-white/5 last:border-0">
+                    <td className="py-1.5 pr-3">{row.name}</td>
+                    <td className="py-1.5 pr-3 text-right">{formatNumber(row.count)} ออเดอร์</td>
+                    <td className="py-1.5 text-right text-white/60">{formatBaht(row.value)}</td>
+                  </tr>
+                ))}
+                {provinceModalChannels.length === 0 && (
+                  <tr>
+                    <td className="py-3 text-center text-white/35 text-xs">ไม่มีข้อมูล</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            <h4 className="font-semibold text-[0.95rem] m-0 mb-2">สินค้าที่ตีกลับมากสุด (Top 10)</h4>
+            <table className="w-full text-sm">
+              <tbody>
+                {provinceModalProducts.map((row, i) => (
+                  <tr key={row.name} className="border-b border-white/5 last:border-0">
+                    <td className="py-1.5 pr-2 text-white/35 w-6">{i + 1}</td>
+                    <td className="py-1.5 pr-3">{row.name}</td>
+                    <td className="py-1.5 pr-3 text-right">{formatNumber(row.count)}</td>
+                    <td className="py-1.5 text-right text-white/60">{formatBaht(row.value)}</td>
+                  </tr>
+                ))}
+                {provinceModalProducts.length === 0 && (
+                  <tr>
+                    <td className="py-3 text-center text-white/35 text-xs">ไม่มีข้อมูล</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {productModalName && (
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
+          onClick={() => setProductModalName(null)}
+        >
+          <div
+            className="bg-[#121a2e] border border-white/10 rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="font-semibold text-lg m-0">{productModalName}</h3>
+                <p className="text-xs text-white/50 mt-1">
+                  {selectedMonth === "ทั้งหมด" ? "ทั้งหมด" : MONTH_LABELS[selectedMonth] ?? selectedMonth}
+                </p>
+              </div>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setProductModalName(null)}
+                  className="text-[0.8rem] text-white/60 hover:text-white underline"
+                >
+                  ← ย้อนกลับ
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setProductModalName(null)}
+                  className="text-white/35 hover:text-white text-xl leading-none px-2"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mb-5">
+              <div className="rounded-xl bg-white/5 border border-white/10 px-4 py-3">
+                <div className="text-[0.72rem] text-white/50 uppercase">ยอดตีกลับ</div>
+                <div className="text-2xl font-bold" style={{ color: COLORS.teal }}>{formatNumber(productModalRecords.length)} ออเดอร์</div>
+              </div>
+              <div className="rounded-xl bg-white/5 border border-white/10 px-4 py-3">
+                <div className="text-[0.72rem] text-white/50 uppercase">มูลค่ารวม</div>
+                <div className="text-2xl font-bold" style={{ color: COLORS.purple }}>{formatBaht(productModalTotalValue)}</div>
+              </div>
+            </div>
+
+            <h4 className="font-semibold text-[0.95rem] m-0 mb-2">แยกตามช่องทาง</h4>
+            <table className="w-full text-sm mb-5">
+              <tbody>
+                {productModalChannels.map((row) => (
+                  <tr key={row.name} className="border-b border-white/5 last:border-0">
+                    <td className="py-1.5 pr-3">{row.name}</td>
+                    <td className="py-1.5 pr-3 text-right">{formatNumber(row.count)} ออเดอร์</td>
+                    <td className="py-1.5 text-right text-white/60">{formatBaht(row.value)}</td>
+                  </tr>
+                ))}
+                {productModalChannels.length === 0 && (
+                  <tr>
+                    <td className="py-3 text-center text-white/35 text-xs">ไม่มีข้อมูล</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            <h4 className="font-semibold text-[0.95rem] m-0 mb-2">แยกตามจังหวัด (Top 8)</h4>
+            <table className="w-full text-sm mb-5">
+              <tbody>
+                {productModalProvinces.map((row) => (
+                  <tr key={row.geo} className="border-b border-white/5 last:border-0">
+                    <td className="py-1.5 pr-3">{row.name}</td>
+                    <td className="py-1.5 pr-3 text-right">{formatNumber(row.count)} ออเดอร์</td>
+                    <td className="py-1.5 text-right text-white/60">{formatBaht(row.value)}</td>
+                  </tr>
+                ))}
+                {productModalProvinces.length === 0 && (
+                  <tr>
+                    <td className="py-3 text-center text-white/35 text-xs">ไม่มีข้อมูล</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            <h4 className="font-semibold text-[0.95rem] m-0 mb-2">แยกตามแอดมินผู้ขาย (Top 8)</h4>
+            <table className="w-full text-sm">
+              <tbody>
+                {productModalAdmins.map((row) => (
+                  <tr key={row.name} className="border-b border-white/5 last:border-0">
+                    <td className="py-1.5 pr-3">{row.name}</td>
+                    <td className="py-1.5 pr-3 text-right">{formatNumber(row.count)} ออเดอร์</td>
+                    <td className="py-1.5 text-right text-white/60">{formatBaht(row.value)}</td>
+                  </tr>
+                ))}
+                {productModalAdmins.length === 0 && (
+                  <tr>
+                    <td className="py-3 text-center text-white/35 text-xs">ไม่มีข้อมูล</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
