@@ -194,12 +194,12 @@ export default function Home() {
     () => (allRecords ? computeKpis(allRecords, filtered, selectedMonth) : null),
     [allRecords, filtered, selectedMonth]
   );
-  // When a single month is selected, show it plus up to 3 prior months so
-  // the trend line still has context instead of a single point.
+  // When a single month is selected, show every month up to and including
+  // it so the trend line still has context instead of a single point.
   const trendRecords = useMemo(() => {
     if (selectedMonth === "ทั้งหมด" || !allRecords) return filtered;
     const idx = allMonths.indexOf(selectedMonth);
-    const windowMonths = new Set(allMonths.slice(Math.max(0, idx - 3), idx + 1));
+    const windowMonths = new Set(allMonths.slice(0, idx + 1));
     return allRecords.filter((r) => windowMonths.has(r.m));
   }, [filtered, allRecords, allMonths, selectedMonth]);
   const trend = useMemo(() => monthlyTrend(trendRecords), [trendRecords]);
@@ -435,7 +435,7 @@ export default function Home() {
           <div className="col-span-2 panel">
             <h4 className="font-semibold text-[1rem] m-0">แนวโน้มยอดตีกลับรายเดือน</h4>
             <p className="text-[0.78rem] text-white/50 mt-0.5 mb-2">
-              {selectedMonth === "ทั้งหมด" ? "จำนวนรายการตีกลับต่อเดือน" : `4 เดือนล่าสุดถึง ${MONTH_LABELS[selectedMonth] ?? selectedMonth}`}
+              {selectedMonth === "ทั้งหมด" ? "จำนวนรายการตีกลับต่อเดือน" : `ทุกเดือนที่มีข้อมูล จนถึง ${MONTH_LABELS[selectedMonth] ?? selectedMonth}`}
             </p>
             <div style={{ width: "100%", height: 280 }}>
               <ResponsiveContainer>
@@ -508,7 +508,7 @@ export default function Home() {
               <select
                 value={compareDim}
                 onChange={(e) => setCompareDim(e.target.value as Dimension)}
-                className="text-xs border border-white/10 bg-white/5 text-white/80 rounded-lg px-2 py-1.5 flex-shrink-0"
+                className="text-xs border border-white/10 bg-white/5 text-white/80 rounded-lg px-2 py-1.5 flex-shrink-0 [&>option]:bg-white [&>option]:text-black"
               >
                 {(Object.keys(DIMENSION_LABELS) as Dimension[]).map((d) => (
                   <option key={d} value={d}>
@@ -560,7 +560,7 @@ export default function Home() {
                 <select
                   value={mapChannel}
                   onChange={(e) => setMapChannel(e.target.value)}
-                  className="text-xs border border-white/10 bg-white/5 text-white/80 rounded-lg px-2 py-1.5"
+                  className="text-xs border border-white/10 bg-white/5 text-white/80 rounded-lg px-2 py-1.5 [&>option]:bg-white [&>option]:text-black"
                 >
                   <option value="ทั้งหมด">ทุกช่องทาง</option>
                   {mapChannels.map((c) => (
@@ -572,7 +572,7 @@ export default function Home() {
                 <select
                   value={mapSort}
                   onChange={(e) => setMapSort(e.target.value as "มากสุด" | "น้อยสุด")}
-                  className="text-xs border border-white/10 bg-white/5 text-white/80 rounded-lg px-2 py-1.5"
+                  className="text-xs border border-white/10 bg-white/5 text-white/80 rounded-lg px-2 py-1.5 [&>option]:bg-white [&>option]:text-black"
                 >
                   <option value="มากสุด">เรียงมากสุด</option>
                   <option value="น้อยสุด">เรียงน้อยสุด</option>
@@ -851,7 +851,7 @@ export default function Home() {
                 <select
                   value={productSortDir}
                   onChange={(e) => setProductSortDir(e.target.value as "desc" | "asc")}
-                  className="text-xs border border-white/10 bg-white/5 text-white/80 rounded-lg px-2 py-1.5 flex-shrink-0"
+                  className="text-xs border border-white/10 bg-white/5 text-white/80 rounded-lg px-2 py-1.5 flex-shrink-0 [&>option]:bg-white [&>option]:text-black"
                 >
                   <option value="desc">ยอดตีกลับ: มากไปน้อย</option>
                   <option value="asc">ยอดตีกลับ: น้อยไปมาก</option>
@@ -970,7 +970,7 @@ export default function Home() {
                       <select
                         value={adminSortDir}
                         onChange={(e) => setAdminSortDir(e.target.value as "desc" | "asc")}
-                        className="text-xs border border-white/10 bg-white/5 text-white/80 rounded-lg px-2 py-1.5 flex-shrink-0"
+                        className="text-xs border border-white/10 bg-white/5 text-white/80 rounded-lg px-2 py-1.5 flex-shrink-0 [&>option]:bg-white [&>option]:text-black"
                       >
                         <option value="desc">อัตราตีกลับ: มากไปน้อย</option>
                         <option value="asc">อัตราตีกลับ: น้อยไปมาก</option>
@@ -1015,7 +1015,7 @@ export default function Home() {
                       <select
                         value={skuSortDir}
                         onChange={(e) => setSkuSortDir(e.target.value as "desc" | "asc")}
-                        className="text-xs border border-white/10 bg-white/5 text-white/80 rounded-lg px-2 py-1.5 flex-shrink-0"
+                        className="text-xs border border-white/10 bg-white/5 text-white/80 rounded-lg px-2 py-1.5 flex-shrink-0 [&>option]:bg-white [&>option]:text-black"
                       >
                         <option value="desc">อัตราตีกลับ: มากไปน้อย</option>
                         <option value="asc">อัตราตีกลับ: น้อยไปมาก</option>
