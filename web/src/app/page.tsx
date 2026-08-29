@@ -194,7 +194,15 @@ export default function Home() {
     () => (allRecords ? computeKpis(allRecords, filtered, selectedMonth) : null),
     [allRecords, filtered, selectedMonth]
   );
-  const trend = useMemo(() => monthlyTrend(filtered), [filtered]);
+  // When a single month is selected, show it plus up to 3 prior months so
+  // the trend line still has context instead of a single point.
+  const trendRecords = useMemo(() => {
+    if (selectedMonth === "ทั้งหมด" || !allRecords) return filtered;
+    const idx = allMonths.indexOf(selectedMonth);
+    const windowMonths = new Set(allMonths.slice(Math.max(0, idx - 3), idx + 1));
+    return allRecords.filter((r) => windowMonths.has(r.m));
+  }, [filtered, allRecords, allMonths, selectedMonth]);
+  const trend = useMemo(() => monthlyTrend(trendRecords), [trendRecords]);
   const channelCounts = useMemo(() => countBy(filtered, (r) => r.c ?? "ไม่ระบุ").slice(0, 4), [filtered]);
   const totalForShare = channelCounts.reduce((s, [, v]) => s + v, 0) || 1;
 
@@ -426,7 +434,9 @@ export default function Home() {
         <div className="grid grid-cols-3 gap-5 mt-5">
           <div className="col-span-2 panel">
             <h4 className="font-semibold text-[1rem] m-0">แนวโน้มยอดตีกลับรายเดือน</h4>
-            <p className="text-[0.78rem] text-white/50 mt-0.5 mb-2">จำนวนรายการตีกลับต่อเดือน</p>
+            <p className="text-[0.78rem] text-white/50 mt-0.5 mb-2">
+              {selectedMonth === "ทั้งหมด" ? "จำนวนรายการตีกลับต่อเดือน" : `4 เดือนล่าสุดถึง ${MONTH_LABELS[selectedMonth] ?? selectedMonth}`}
+            </p>
             <div style={{ width: "100%", height: 280 }}>
               <ResponsiveContainer>
                 <AreaChart data={trend}>
@@ -592,7 +602,7 @@ export default function Home() {
         )}
 
         {/* Monthly tab */}
-        {activeMenu === "รายเดือน" && (
+        {activeMenu === "รายเดือน" && selectedMonth === "ทั้งหมด" && (
           <div className="panel mt-5">
             <h4 className="font-semibold text-[1rem] m-0">สรุปยอด/มูลค่าตีกลับรายเดือน</h4>
             <p className="text-[0.78rem] text-white/50 mt-0.5 mb-3">เปรียบเทียบทุกเดือนที่มีข้อมูล เทียบกับเดือนก่อนหน้า</p>
@@ -623,6 +633,104 @@ export default function Home() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            <div className="mt-6">
+              <h4 className="font-semibold text-[1rem] m-0">% เปลี่ยนแปลงยอดตีกลับ เทียบเดือนก่อน</h4>
+              <p className="text-[0.78rem] text-white/50 mt-0.5 mb-2">สีแดง = เพิ่มขึ้น (แย่ลง) · สีเขียว = ลดลง (ดีขึ้น)</p>
+              <div style={{ width: "100%", height: 220 }}>
+                <ResponsiveContainer>
+                  <BarChart data={monthlyRows.filter((r) => r.countDeltaPct != null)} margin={{ left: 4, right: 4, top: 4, bottom: 4 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.08)" />
+                    <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} unit="%" />
+                    <Tooltip formatter={(v) => [`${Number(v).toFixed(1)}%`, "% เทียบเดือนก่อน"]} {...TOOLTIP_STYLE} />
+                    <Bar dataKey="countDeltaPct" radius={[6, 6, 0, 0]}>
+                      {monthlyRows
+                        .filter((r) => r.countDeltaPct != null)
+                        .map((r, i) => (
+                          <Cell key={i} fill={(r.countDeltaPct ?? 0) >= 0 ? COLORS.red : COLORS.teal} />
+                        ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeMenu === "รายเดือน" && selectedMonth !== "ทั้งหมด" && (
+          <div className="grid grid-cols-3 gap-5 mt-5">
+            <div className="panel">
+              <h4 className="font-semibold text-[1rem] m-0">สรุปเดือน {MONTH_LABELS[selectedMonth] ?? selectedMonth}</h4>
+              <p className="text-[0.78rem] text-white/50 mt-0.5 mb-3">เทียบกับเดือนก่อนหน้า</p>
+              <div className="flex flex-col gap-4">
+                <div>
+                  <div className="text-[0.78rem] text-white/50">ยอดตีกลับ</div>
+                  <div className="text-[1.6rem] font-bold" style={{ color: COLORS.teal }}>{formatNumber(kpis.curCount)}</div>
+                  <DeltaPill pct={kpis.countDeltaPct} badWhenUp note="จากเดือนก่อน" />
+                </div>
+                <div>
+                  <div className="text-[0.78rem] text-white/50">มูลค่าตีกลับ</div>
+                  <div className="text-[1.6rem] font-bold" style={{ color: COLORS.blue }}>{formatBaht(kpis.curValue)}</div>
+                  <DeltaPill pct={kpis.valueDeltaPct} badWhenUp note="จากเดือนก่อน" />
+                </div>
+              </div>
+            </div>
+            <div className="col-span-2 panel">
+              <h4 className="font-semibold text-[1rem] m-0">แยกตามช่องทาง — {MONTH_LABELS[selectedMonth] ?? selectedMonth}</h4>
+              <p className="text-[0.78rem] text-white/50 mt-0.5 mb-2">เรียงจากยอดตีกลับมากไปน้อย</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-white/50 border-b border-white/10">
+                      <th className="py-2 pr-3 font-medium">ช่องทาง</th>
+                      <th className="py-2 pr-3 font-medium text-right">ยอดตีกลับ</th>
+                      <th className="py-2 pr-3 font-medium text-right">สัดส่วน</th>
+                      <th className="py-2 font-medium text-right">มูลค่า (บาท)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allChannels.map((row, i) => (
+                      <tr key={row.name} className="border-b border-white/5 last:border-0">
+                        <td className="py-2 pr-3 flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full inline-block" style={{ background: DONUT_PALETTE[i % DONUT_PALETTE.length] }} />
+                          {row.name}
+                        </td>
+                        <td className="py-2 pr-3 text-right">{formatNumber(row.count)}</td>
+                        <td className="py-2 pr-3 text-right">{row.sharePct.toFixed(1)}%</td>
+                        <td className="py-2 text-right">{formatBaht(row.value)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="col-span-3 panel">
+              <h4 className="font-semibold text-[1rem] m-0">สินค้าที่ตีกลับมากสุด — {MONTH_LABELS[selectedMonth] ?? selectedMonth}</h4>
+              <p className="text-[0.78rem] text-white/50 mt-0.5 mb-2">Top 10 สินค้าของเดือนนี้</p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-white/50 border-b border-white/10">
+                      <th className="py-2 pr-3 font-medium w-10">#</th>
+                      <th className="py-2 pr-3 font-medium">สินค้า</th>
+                      <th className="py-2 pr-3 font-medium text-right">ยอดตีกลับ</th>
+                      <th className="py-2 font-medium text-right">มูลค่า (บาท)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productsTop.slice(0, 10).map((row, i) => (
+                      <tr key={row.name} className="border-b border-white/5 last:border-0">
+                        <td className="py-2 pr-3 text-white/35">{i + 1}</td>
+                        <td className="py-2 pr-3">{row.name}</td>
+                        <td className="py-2 pr-3 text-right">{formatNumber(row.count)}</td>
+                        <td className="py-2 text-right">{formatBaht(row.value)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
