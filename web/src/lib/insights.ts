@@ -66,6 +66,12 @@ export interface InsightMonth {
   sourceDocs: { label: string; url: string }[];
 }
 
+// Keyed by month ("YYYY-MM") — the Insight tab's month dropdown only ever
+// offers months present here (curated meeting docs), while its live-data
+// sections fall back to computing straight from records.json/order_totals.json
+// for any other month so the tab isn't blocked just because no meeting
+// summary has been curated for it yet. Add next month's entry here once its
+// documents are read.
 export const INSIGHT_2026_07: InsightMonth = {
   month: "2026-07",
   label: "กรกฎาคม 2569",
@@ -209,4 +215,8 @@ export const INSIGHT_2026_07: InsightMonth = {
     { label: "ฝ่ายคลังสินค้า", url: "https://docs.google.com/presentation/d/11E_fX5USinr5dveP57kEGyoMsacmFZGLjvqtP1s0PZw/edit" },
     { label: "สรุปการประชุม (เลขา)", url: "https://drive.google.com/file/d/1Cv59njZCrX173uDzQbgiUZ5H8zqQgDk6/view" },
   ],
+};
+
+export const INSIGHTS: Record<string, InsightMonth> = {
+  "2026-07": INSIGHT_2026_07,
 };
