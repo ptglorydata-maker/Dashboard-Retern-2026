@@ -39,7 +39,7 @@ import {
 import { ThailandMap } from "@/components/ThailandMap";
 import { InsightTab } from "@/components/InsightTab";
 
-const MENU_ITEMS = ["ภาพรวม", "รายเดือน", "ช่องทางขาย", "สินค้า", "COD & ต้นทุน", "อินไซต์"];
+const MENU_ITEMS = ["ภาพรวม", "รายเดือน", "ช่องทางขาย", "สินค้า", "COD & ต้นทุน", "Insight"];
 const DONUT_PALETTE = [COLORS.teal, COLORS.blue, COLORS.orange, COLORS.red, COLORS.purple, COLORS.cyan];
 const TOOLTIP_STYLE = {
   contentStyle: { background: "#121a2e", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, fontSize: 12 },
@@ -1059,7 +1059,7 @@ export default function Home() {
         )}
 
         {/* Insight tab */}
-        {activeMenu === "อินไซต์" && <InsightTab />}
+        {activeMenu === "Insight" && <InsightTab allRecords={allRecords} orderTotals={orderTotals} />}
 
       </main>
 
