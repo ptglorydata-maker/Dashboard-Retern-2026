@@ -37,8 +37,9 @@ import {
   Dimension,
 } from "@/lib/aggregate";
 import { ThailandMap } from "@/components/ThailandMap";
+import { InsightTab } from "@/components/InsightTab";
 
-const MENU_ITEMS = ["ภาพรวม", "รายเดือน", "ช่องทางขาย", "สินค้า", "COD & ต้นทุน"];
+const MENU_ITEMS = ["ภาพรวม", "รายเดือน", "ช่องทางขาย", "สินค้า", "COD & ต้นทุน", "อินไซต์"];
 const DONUT_PALETTE = [COLORS.teal, COLORS.blue, COLORS.orange, COLORS.red, COLORS.purple, COLORS.cyan];
 const TOOLTIP_STYLE = {
   contentStyle: { background: "#121a2e", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, fontSize: 12 },
@@ -342,7 +343,7 @@ export default function Home() {
       </aside>
 
       {/* Main */}
-      <main className="flex-1 p-8 max-w-[1400px]">
+      <main className="flex-1 self-start p-8 max-w-[1400px]">
         {isDemo && (
           <div className="mb-5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-300 text-sm px-4 py-3">
             ⚠️ ยังไม่พบไฟล์ข้อมูล (<code>web/public/data/records.json</code>) — แสดงผลด้วย
@@ -857,14 +858,14 @@ export default function Home() {
                   <option value="asc">ยอดตีกลับ: น้อยไปมาก</option>
                 </select>
               </div>
-              <div className="overflow-y-auto overflow-x-auto" style={{ maxHeight: 460 }}>
+              <div className="overflow-y-auto overflow-x-auto pr-2" style={{ maxHeight: 460 }}>
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-white/50 border-b border-white/10">
                       <th className="py-2 pr-3 font-medium w-10">#</th>
                       <th className="py-2 pr-3 font-medium">สินค้า</th>
                       <th className="py-2 pr-3 font-medium text-right">ยอดตีกลับ</th>
-                      <th className="py-2 font-medium text-right">มูลค่า (บาท)</th>
+                      <th className="py-2 pr-3 font-medium text-right">มูลค่า (บาท)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -873,7 +874,7 @@ export default function Home() {
                         <td className="py-2 pr-3 text-white/35">{i + 1}</td>
                         <td className="py-2 pr-3">{row.name}</td>
                         <td className="py-2 pr-3 text-right">{formatNumber(row.count)}</td>
-                        <td className="py-2 text-right">{formatBaht(row.value)}</td>
+                        <td className="py-2 pr-3 text-right">{formatBaht(row.value)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1056,6 +1057,9 @@ export default function Home() {
             )}
           </>
         )}
+
+        {/* Insight tab */}
+        {activeMenu === "อินไซต์" && <InsightTab />}
 
       </main>
 
