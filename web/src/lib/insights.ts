@@ -49,6 +49,7 @@ export interface InsightMonth {
   totalReturnOrders: number;
   totalOrders: number;
   returnRatePct: number;
+  totalsNote: string;
   focusItems: string[];
   returnReasons: ReturnReasonSlice[];
   returnReasonsNote: string;
@@ -77,11 +78,13 @@ export const INSIGHT_2026_07: InsightMonth = {
   label: "กรกฎาคม 2569",
   meetingDate: "24 สิงหาคม 2569",
   attendees: "ผู้บริหาร / เลขา / แอดมิน / CRM / Line OA / Data Analytics / คลังสินค้า",
-  totalSales: 51678013.77,
-  totalReturnValue: 1468839,
-  totalReturnOrders: 2834,
-  totalOrders: 91082,
-  returnRatePct: 3.11,
+  totalSales: 49163623.77,
+  totalReturnValue: 1133639,
+  totalReturnOrders: 2145,
+  totalOrders: 86374,
+  returnRatePct: 2.48,
+  totalsNote:
+    "ตัวเลขด้านบนไม่รวมช่องทาง Laos (ยอดขาย 2,514,390 บาท / มูลค่าตีกลับ 335,200 บาท / 689 ออเดอร์ตีกลับ จาก 4,708 ออเดอร์ขาย อัตราตีกลับ 14.63%) เนื่องจากเป็นตลาดต่างประเทศที่มีบริบทการจัดส่ง/ตีกลับต่างจากช่องทางในประเทศอย่างมาก (ช่วง ก.ค. ได้รับผลกระทบจากน้ำท่วมในพื้นที่ลาว 8 เขต) หากรวม Laos กลับเข้าไป อัตราตีกลับรวมของบริษัทจะอยู่ที่ 3.11%",
   focusItems: [
     "ติดตามการตรวจสอบแอดมินทุกวัน (15:30 น.) พร้อมบทลงโทษ และกำหนดประเมินผลภายในวันที่ 6 ของเดือนถัดไป",
     "ผลักดันการใช้ระบบ \"Pancake\" เป็นมาตรฐานบันทึกนัดหมาย/ติดตามพัสดุทุกทีม",

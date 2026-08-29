@@ -8,6 +8,7 @@ export interface RawRecord {
   n: string | null; // product_name
   v: number | null; // product_price
   t: string | null; // order_time, ISO
+  a: string | null; // salesperson (admin)
 }
 
 // Written by pipeline/aggregate_for_web.py's dim_breakdown() — all-orders

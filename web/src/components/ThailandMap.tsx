@@ -22,7 +22,7 @@ export interface ProvinceDatum {
   value: number;
 }
 
-export function ThailandMap({ data }: { data: ProvinceDatum[] }) {
+export function ThailandMap({ data, onSelectProvince }: { data: ProvinceDatum[]; onSelectProvince?: (geo: string) => void }) {
   const [geoData, setGeoData] = useState<GeoCollection | null>(null);
   const [hover, setHover] = useState<{ x: number; y: number; d: ProvinceDatum | null; name: string } | null>(null);
 
@@ -71,11 +71,15 @@ export function ThailandMap({ data }: { data: ProvinceDatum[] }) {
               fill={d ? colorScale(d.count) : "#1a2540"}
               stroke="#0a0f1e"
               strokeWidth={0.6}
+              className={onSelectProvince && d ? "cursor-pointer" : undefined}
               onMouseMove={(e) => {
                 const rect = (e.target as SVGElement).ownerSVGElement!.getBoundingClientRect();
                 setHover({ x: e.clientX - rect.left, y: e.clientY - rect.top, d: d ?? null, name: f.properties.name });
               }}
               onMouseLeave={() => setHover(null)}
+              onClick={() => {
+                if (d && onSelectProvince) onSelectProvince(d.geo);
+              }}
             />
           );
         })}
@@ -90,6 +94,7 @@ export function ThailandMap({ data }: { data: ProvinceDatum[] }) {
             <>
               <div>ยอดตีกลับ: {hover.d.count.toLocaleString()}</div>
               <div>มูลค่า: ฿{hover.d.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+              {onSelectProvince && <div className="text-white/40 mt-1">คลิกดูรายละเอียด →</div>}
             </>
           ) : (
             <div className="text-white/40">ไม่มีข้อมูล</div>
