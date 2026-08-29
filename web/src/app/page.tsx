@@ -1059,7 +1059,9 @@ export default function Home() {
         )}
 
         {/* Insight tab */}
-        {activeMenu === "Insight" && <InsightTab allRecords={allRecords} orderTotals={orderTotals} />}
+        {activeMenu === "Insight" && (
+          <InsightTab allRecords={allRecords} orderTotals={orderTotals} selectedMonth={selectedMonth} />
+        )}
 
       </main>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 import { COLORS, MONTH_LABELS, RawRecord, OrderTotals } from "@/lib/types";
 import { channelBreakdown, topByDimension, pickTotals, computeRateCards, rateRanking } from "@/lib/aggregate";
@@ -25,19 +25,27 @@ const TOOLTIP_STYLE = {
   itemStyle: { color: "#e5e7eb" },
 };
 
-export function InsightTab({ allRecords, orderTotals }: { allRecords: RawRecord[]; orderTotals: OrderTotals | null }) {
-  const allMonths = useMemo(() => Array.from(new Set(allRecords.map((r) => r.m))).sort(), [allRecords]);
-  const curatedMonths = useMemo(() => Object.keys(INSIGHTS).sort(), []);
-  const defaultMonth = curatedMonths[curatedMonths.length - 1] ?? allMonths[allMonths.length - 1];
-  const [month, setMonth] = useState<string>(defaultMonth);
-  const d = INSIGHTS[month];
+export function InsightTab({
+  allRecords,
+  orderTotals,
+  selectedMonth,
+}: {
+  allRecords: RawRecord[];
+  orderTotals: OrderTotals | null;
+  selectedMonth: string;
+}) {
+  const isAllMonths = selectedMonth === "ทั้งหมด";
+  const d = isAllMonths ? undefined : INSIGHTS[selectedMonth];
 
-  const monthRecords = useMemo(() => allRecords.filter((r) => r.m === month), [allRecords, month]);
+  const monthRecords = useMemo(
+    () => (isAllMonths ? allRecords : allRecords.filter((r) => r.m === selectedMonth)),
+    [allRecords, selectedMonth, isAllMonths]
+  );
   const liveChannels = useMemo(() => channelBreakdown(monthRecords), [monthRecords]);
   const liveProducts = useMemo(() => topByDimension(monthRecords, "n", 5), [monthRecords]);
   const liveRateCards = useMemo(
-    () => (orderTotals ? computeRateCards(pickTotals(orderTotals, month)) : null),
-    [orderTotals, month]
+    () => (orderTotals ? computeRateCards(pickTotals(orderTotals, selectedMonth)) : null),
+    [orderTotals, selectedMonth]
   );
   const liveCourierTop = useMemo(
     () => (orderTotals ? rateRanking(orderTotals.byCourier, 100, 3) : []),
@@ -57,23 +65,34 @@ export function InsightTab({ allRecords, orderTotals }: { allRecords: RawRecord[
             <p className="text-[0.88rem] text-white/50 mt-1">
               {d
                 ? `จากที่ประชุมวันที่ ${d.meetingDate} · ผู้เข้าร่วม: ${d.attendees}`
-                : "ยังไม่มีสรุปที่ประชุมสำหรับเดือนนี้ — แสดงการวิเคราะห์จากข้อมูลดิบของ Dashboard แทน"}
+                : isAllMonths
+                ? "เลือกเดือนจากแถบด้านซ้ายเพื่อดูสรุปเชิงลึกของเดือนนั้น"
+                : "ยังไม่มีสรุปที่ประชุมสำหรับเดือนนี้"}
             </p>
           </div>
-          <select
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            className="text-[0.8rem] border border-white/10 bg-white/5 text-white/80 rounded-lg px-2 py-1.5 flex-shrink-0 [&>option]:bg-white [&>option]:text-black"
-          >
-            {allMonths.map((m) => (
-              <option key={m} value={m}>
-                {MONTH_LABELS[m] ?? m}
-                {INSIGHTS[m] ? " • มีสรุปที่ประชุม" : ""}
-              </option>
-            ))}
-          </select>
+          <span className="text-[0.8rem] border border-white/10 bg-white/5 text-white/70 rounded-lg px-3 py-1.5 flex-shrink-0">
+            เดือนที่แสดง: {isAllMonths ? "ทั้งหมด" : MONTH_LABELS[selectedMonth] ?? selectedMonth}
+          </span>
         </div>
       </div>
+
+      {!d && (
+        <div className="panel border border-amber-500/25 bg-amber-500/5">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl flex-shrink-0">🛠️</span>
+            <div>
+              <div className="font-semibold text-[1rem] text-amber-300">
+                {isAllMonths ? "กรุณาเลือกเดือนที่ต้องการดูสรุปเชิงลึก" : "อยู่ระหว่างดำเนินการทำข้อมูล"}
+              </div>
+              <p className="text-[0.88rem] text-white/60 mt-1">
+                {isAllMonths
+                  ? "สรุปเชิงลึกจากที่ประชุมจะแสดงทีละเดือน — เลือกเดือนที่ต้องการจากแถบ \"เลือกเดือน\" ด้านซ้าย"
+                  : `ยังไม่มีสรุปจากที่ประชุมสำหรับเดือน ${MONTH_LABELS[selectedMonth] ?? selectedMonth} — ด้านล่างนี้คือข้อมูลดิบจาก Dashboard ที่คำนวณได้ในระหว่างนี้`}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {d ? (
         <>
@@ -297,7 +316,7 @@ export function InsightTab({ allRecords, orderTotals }: { allRecords: RawRecord[
             </div>
           </div>
         </>
-      ) : (
+      ) : isAllMonths ? null : (
         <>
           <div className="grid grid-cols-3 gap-5">
             <div className="panel">
@@ -326,7 +345,7 @@ export function InsightTab({ allRecords, orderTotals }: { allRecords: RawRecord[
           <div className="grid grid-cols-2 gap-5">
             <div className="panel">
               <h4 className="font-semibold text-[1.15rem] m-0">แยกตามช่องทาง</h4>
-              <p className="text-[0.88rem] text-white/50 mt-0.5 mb-2">{MONTH_LABELS[month] ?? month}</p>
+              <p className="text-[0.88rem] text-white/50 mt-0.5 mb-2">{MONTH_LABELS[selectedMonth] ?? selectedMonth}</p>
               <div className="flex flex-col gap-2">
                 {liveChannels.map((row, i) => (
                   <div key={row.name} className="text-[0.92rem]">
@@ -353,7 +372,7 @@ export function InsightTab({ allRecords, orderTotals }: { allRecords: RawRecord[
             </div>
             <div className="panel">
               <h4 className="font-semibold text-[1.15rem] m-0">สินค้าตีกลับสูงสุด</h4>
-              <p className="text-[0.88rem] text-white/50 mt-0.5 mb-2">Top 5 · {MONTH_LABELS[month] ?? month}</p>
+              <p className="text-[0.88rem] text-white/50 mt-0.5 mb-2">Top 5 · {MONTH_LABELS[selectedMonth] ?? selectedMonth}</p>
               <table className="w-full text-sm">
                 <tbody>
                   {liveProducts.map((row, i) => (
