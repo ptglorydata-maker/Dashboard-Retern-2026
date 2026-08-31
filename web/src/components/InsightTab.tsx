@@ -43,9 +43,13 @@ export function InsightTab({
   );
   const liveChannels = useMemo(() => channelBreakdown(monthRecords), [monthRecords]);
   const liveProducts = useMemo(() => topByDimension(monthRecords, "n", 5), [monthRecords]);
-  const liveRateCards = useMemo(
-    () => (orderTotals ? computeRateCards(pickTotals(orderTotals, selectedMonth)) : null),
+  const liveTotals = useMemo(
+    () => (orderTotals ? pickTotals(orderTotals, selectedMonth) : null),
     [orderTotals, selectedMonth]
+  );
+  const liveRateCards = useMemo(
+    () => (liveTotals ? computeRateCards(liveTotals) : null),
+    [liveTotals]
   );
   const liveCourierTop = useMemo(
     () => (orderTotals ? rateRanking(orderTotals.byCourier, 100, 3) : []),
@@ -102,15 +106,21 @@ export function InsightTab({
               <div className="flex gap-8 text-right flex-shrink-0 pr-1">
                 <div>
                   <div className="text-[0.78rem] text-white/50 uppercase">ยอดขายรวม</div>
-                  <div className="text-[2rem] font-bold text-white leading-tight">{formatBaht(d.totalSales)}</div>
+                  <div className="text-[2rem] font-bold text-white leading-tight">
+                    {formatBaht(liveTotals ? liveTotals.value : d.totalSales)}
+                  </div>
                 </div>
                 <div>
                   <div className="text-[0.78rem] text-white/50 uppercase">มูลค่าตีกลับ</div>
-                  <div className="text-[2rem] font-bold leading-tight" style={{ color: COLORS.red }}>{formatBaht(d.totalReturnValue)}</div>
+                  <div className="text-[2rem] font-bold leading-tight" style={{ color: COLORS.red }}>
+                    {formatBaht(liveRateCards ? liveRateCards.financialLoss : d.totalReturnValue)}
+                  </div>
                 </div>
                 <div>
                   <div className="text-[0.78rem] text-white/50 uppercase">อัตราตีกลับ</div>
-                  <div className="text-[2rem] font-bold leading-tight" style={{ color: COLORS.orange }}>{d.returnRatePct.toFixed(2)}%</div>
+                  <div className="text-[2rem] font-bold leading-tight" style={{ color: COLORS.orange }}>
+                    {(liveRateCards ? liveRateCards.returnRateUnits : d.returnRatePct).toFixed(2)}%
+                  </div>
                 </div>
               </div>
             </div>
@@ -120,7 +130,14 @@ export function InsightTab({
               ))}
             </ul>
             <div className="mt-3 pt-3 border-t border-white/10 text-[0.78rem] text-white/45 leading-relaxed">
-              หมายเหตุ: {d.totalsNote}
+              {liveRateCards && (
+                <p className="mb-1.5">
+                  หมายเหตุ: ตัวเลขด้านบนคำนวณสดจากข้อมูลระบบทั้งหมด (ทุกช่องทาง รวม Laos) — ใช้สูตรเดียวกับหน้า
+                  &quot;ภาพรวม&quot; และ &quot;COD &amp; ต้นทุน&quot; จึงตรงกันทุกหน้า ต่างจากตัวเลขที่สรุปในที่ประชุม (ไม่รวม Laos) ซึ่งอยู่ที่
+                  ยอดขาย {formatBaht(d.totalSales)} / มูลค่าตีกลับ {formatBaht(d.totalReturnValue)} / อัตราตีกลับ {d.returnRatePct.toFixed(2)}%
+                </p>
+              )}
+              <p>บริบทจากที่ประชุม: {d.totalsNote}</p>
             </div>
           </div>
 

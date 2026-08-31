@@ -42,6 +42,16 @@ import { InsightTab } from "@/components/InsightTab";
 
 const MENU_ITEMS = ["ภาพรวม", "รายเดือน", "ช่องทางขาย", "สินค้า", "COD & ต้นทุน", "Insight"];
 const DONUT_PALETTE = [COLORS.teal, COLORS.blue, COLORS.orange, COLORS.red, COLORS.purple, COLORS.cyan];
+
+type TrendMetric = "rate" | "count" | "value";
+const TREND_METRIC_OPTIONS: Record<
+  TrendMetric,
+  { label: string; dataKey: TrendMetric; color: string; format: (v: number) => string }
+> = {
+  rate: { label: "% ตีกลับ", dataKey: "rate", color: COLORS.red, format: (v) => `${v.toFixed(2)}%` },
+  count: { label: "ยอดตีกลับ", dataKey: "count", color: COLORS.teal, format: (v) => `${v.toLocaleString("en-US", { maximumFractionDigits: 0 })} รายการ` },
+  value: { label: "มูลค่าตีกลับ", dataKey: "value", color: COLORS.blue, format: (v) => "฿" + v.toLocaleString("en-US", { maximumFractionDigits: 0 }) },
+};
 const TOOLTIP_STYLE = {
   contentStyle: { background: "#121a2e", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 10, fontSize: 12 },
   labelStyle: { color: "#94a3b8" },
@@ -128,6 +138,7 @@ export default function Home() {
   const [updatedAt, setUpdatedAt] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<string>("ทั้งหมด");
   const [activeMenu, setActiveMenu] = useState<string>(MENU_ITEMS[0]);
+  const [trendMetric, setTrendMetric] = useState<TrendMetric>("rate");
   const [compareDim, setCompareDim] = useState<Dimension>("n");
   const [mapChannel, setMapChannel] = useState<string>("ทั้งหมด");
   const [mapSort, setMapSort] = useState<"มากสุด" | "น้อยสุด">("มากสุด");
@@ -208,6 +219,17 @@ export default function Home() {
     return allRecords.filter((r) => windowMonths.has(r.m));
   }, [filtered, allRecords, allMonths, selectedMonth]);
   const trend = useMemo(() => monthlyTrend(trendRecords), [trendRecords]);
+  // % ตีกลับ per month comes from order_totals.json (all-orders denominator),
+  // not from records.json (returns only) — merge it in by month key so the
+  // overview trend chart can offer rate/count/value on the same panel.
+  const rateByMonth = useMemo(() => {
+    if (!orderTotals) return new Map<string, number>();
+    return new Map(monthlyRateTrend(orderTotals.byMonth).map((r) => [r.month, r.returnRatePct]));
+  }, [orderTotals]);
+  const trendWithRate = useMemo(
+    () => trend.map((t) => ({ ...t, rate: rateByMonth.get(t.month) ?? null })),
+    [trend, rateByMonth]
+  );
   const channelCounts = useMemo(() => countBy(filtered, (r) => r.c ?? "ไม่ระบุ").slice(0, 4), [filtered]);
   const totalForShare = channelCounts.reduce((s, [, v]) => s + v, 0) || 1;
 
@@ -430,7 +452,21 @@ export default function Home() {
         </div>
 
         {/* KPI cards */}
-        <div className="grid grid-cols-4 gap-5">
+        <div className="grid grid-cols-5 gap-5">
+          <KpiCard
+            label={`% ตีกลับ · ${kpis.curMonthLabel}`}
+            value={rateCards ? formatPct(rateCards.returnRateUnits) : "-"}
+            icon="⚠️"
+            accent={COLORS.red}
+            onClick={() => setActiveMenu("COD & ต้นทุน")}
+            sub={
+              rateCards ? (
+                <span className="kpi-delta">{formatPct(rateCards.returnRateValue)} ตามมูลค่า</span>
+              ) : (
+                <span className="kpi-delta">กำลังโหลดข้อมูล...</span>
+              )
+            }
+          />
           <KpiCard
             label={`ยอดตีกลับ · ${kpis.curMonthLabel}`}
             value={formatNumber(kpis.curCount)}
@@ -482,24 +518,48 @@ export default function Home() {
         <>
         <div className="grid grid-cols-3 gap-5 mt-5">
           <div className="col-span-2 panel">
-            <h4 className="font-semibold text-[1rem] m-0">แนวโน้มยอดตีกลับรายเดือน</h4>
-            <p className="text-[0.78rem] text-white/50 mt-0.5 mb-2">
-              {selectedMonth === "ทั้งหมด" ? "จำนวนรายการตีกลับต่อเดือน" : `ทุกเดือนที่มีข้อมูล จนถึง ${MONTH_LABELS[selectedMonth] ?? selectedMonth}`}
-            </p>
+            <div className="flex items-start justify-between gap-2 flex-wrap">
+              <div>
+                <h4 className="font-semibold text-[1rem] m-0">แนวโน้ม{TREND_METRIC_OPTIONS[trendMetric].label}รายเดือน</h4>
+                <p className="text-[0.78rem] text-white/50 mt-0.5 mb-2">
+                  {selectedMonth === "ทั้งหมด"
+                    ? `${TREND_METRIC_OPTIONS[trendMetric].label}ต่อเดือน`
+                    : `ทุกเดือนที่มีข้อมูล จนถึง ${MONTH_LABELS[selectedMonth] ?? selectedMonth}`}
+                </p>
+              </div>
+              <select
+                value={trendMetric}
+                onChange={(e) => setTrendMetric(e.target.value as TrendMetric)}
+                className="text-xs border border-white/10 bg-white/5 text-white/80 rounded-lg px-2 py-1.5 flex-shrink-0 [&>option]:bg-white [&>option]:text-black"
+              >
+                {(Object.keys(TREND_METRIC_OPTIONS) as TrendMetric[]).map((m) => (
+                  <option key={m} value={m}>
+                    {TREND_METRIC_OPTIONS[m].label}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div style={{ width: "100%", height: 280 }}>
               <ResponsiveContainer>
-                <AreaChart data={trend}>
+                <AreaChart data={trendWithRate}>
                   <defs>
                     <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor={COLORS.teal} stopOpacity={0.35} />
-                      <stop offset="100%" stopColor={COLORS.teal} stopOpacity={0} />
+                      <stop offset="0%" stopColor={TREND_METRIC_OPTIONS[trendMetric].color} stopOpacity={0.35} />
+                      <stop offset="100%" stopColor={TREND_METRIC_OPTIONS[trendMetric].color} stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.08)" />
                   <XAxis dataKey="label" tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={(v) => [`${formatNumber(Number(v))} รายการ`, ""]} {...TOOLTIP_STYLE} />
-                  <Area type="monotone" dataKey="count" stroke={COLORS.teal} strokeWidth={3} fill="url(#trendFill)" />
+                  <Tooltip formatter={(v) => [TREND_METRIC_OPTIONS[trendMetric].format(Number(v)), ""]} {...TOOLTIP_STYLE} />
+                  <Area
+                    type="monotone"
+                    dataKey={TREND_METRIC_OPTIONS[trendMetric].dataKey}
+                    stroke={TREND_METRIC_OPTIONS[trendMetric].color}
+                    strokeWidth={3}
+                    fill="url(#trendFill)"
+                    connectNulls
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             </div>

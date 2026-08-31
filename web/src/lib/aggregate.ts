@@ -215,12 +215,17 @@ export function countBy(records: RawRecord[], keyFn: (r: RawRecord) => string): 
   return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
 }
 
-export function monthlyTrend(records: RawRecord[]): { month: string; label: string; count: number }[] {
-  const counts = new Map<string, number>();
-  for (const r of records) counts.set(r.m, (counts.get(r.m) ?? 0) + 1);
-  return Array.from(counts.entries())
+export function monthlyTrend(records: RawRecord[]): { month: string; label: string; count: number; value: number }[] {
+  const stats = new Map<string, { count: number; value: number }>();
+  for (const r of records) {
+    const cur = stats.get(r.m) ?? { count: 0, value: 0 };
+    cur.count += 1;
+    cur.value += r.v ?? 0;
+    stats.set(r.m, cur);
+  }
+  return Array.from(stats.entries())
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([month, count]) => ({ month, label: MONTH_LABELS[month] ?? month, count }));
+    .map(([month, { count, value }]) => ({ month, label: MONTH_LABELS[month] ?? month, count, value }));
 }
 
 export interface MonthlySummaryRow {
