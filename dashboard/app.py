@@ -111,8 +111,18 @@ st.markdown(
     [data-testid="stDataFrame"] {{ border: 1px solid {CARD_BORDER}; border-radius: 12px; }}
     hr {{ border-color: {CARD_BORDER}; margin: 1.75rem 0; }}
     /* เว้นช่องว่างระหว่างคอลัมน์/การ์ดให้โล่งขึ้น ตามโจทย์ "มินิมอล" */
-    [data-testid="stHorizontalBlock"] {{ gap: 1.5rem; flex-wrap: nowrap; }}
+    [data-testid="stHorizontalBlock"] {{ gap: 1.5rem; }}
     [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {{ min-width: 0; }}
+    /* บังคับไม่ให้คอลัมน์ตกบรรทัด (KPI 4 ใบ, ranked list 3-4 คอลัมน์) เฉพาะจอกว้างพอ —
+       มือถือ/จอแคบยังคง wrap เป็นแนวตั้งตามปกติของ Streamlit ไม่งั้นเปิดในมือถือไม่ได้ */
+    @media (min-width: 900px) {{
+        [data-testid="stHorizontalBlock"] {{ flex-wrap: nowrap; }}
+    }}
+    @media (max-width: 640px) {{
+        .block-container {{ padding-left: 1rem; padding-right: 1rem; }}
+        .topbar {{ flex-direction: column; align-items: flex-start; gap: 12px; }}
+        .kpi-value {{ font-size: 1.4rem; }}
+    }}
     /* ตัวเลขใช้ Roboto ตามที่ขอ — ทับ Kanit เฉพาะจุดที่เป็นตัวเลขล้วน */
     .kpi-value, .kpi-delta, .num-font {{ font-family: 'Roboto', sans-serif !important; }}
 
