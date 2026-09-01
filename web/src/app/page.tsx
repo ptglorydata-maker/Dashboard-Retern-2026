@@ -34,6 +34,7 @@ import {
   rateRanking,
   monthlyRateTrend,
   channelMonthlyTrend,
+  productReturnRates,
   DIMENSION_LABELS,
   Dimension,
 } from "@/lib/aggregate";
@@ -274,6 +275,10 @@ export default function Home() {
   const compareAllRows = useMemo(() => topByDimension(filtered, compareDim, Infinity), [filtered, compareDim]);
   const productsAll = useMemo(() => topByDimension(filtered, "n", Infinity, productSortDir), [filtered, productSortDir]);
   const productsTop = useMemo(() => productsAll.slice(0, 15), [productsAll]);
+  const productRateMap = useMemo(
+    () => (orderTotals ? productReturnRates(orderTotals.bySku) : new Map<string, number>()),
+    [orderTotals]
+  );
 
   const productModalRecords = useMemo(
     () => (productModalName ? filtered.filter((r) => r.n === productModalName) : []),
@@ -1097,22 +1102,29 @@ export default function Home() {
                       <th className="py-2 pr-3 font-medium w-10">#</th>
                       <th className="py-2 pr-3 font-medium">สินค้า</th>
                       <th className="py-2 pr-3 font-medium text-right">ยอดตีกลับ</th>
+                      <th className="py-2 pr-3 font-medium text-right">% ตีกลับ</th>
                       <th className="py-2 pr-3 font-medium text-right">มูลค่า (บาท)</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {productsAll.map((row, i) => (
-                      <tr
-                        key={row.name}
-                        onClick={() => setProductModalName(row.name)}
-                        className="border-b border-white/5 last:border-0 cursor-pointer hover:bg-white/5"
-                      >
-                        <td className="py-2 pr-3 text-white/35">{i + 1}</td>
-                        <td className="py-2 pr-3">{row.name}</td>
-                        <td className="py-2 pr-3 text-right">{formatNumber(row.count)}</td>
-                        <td className="py-2 pr-3 text-right">{formatBaht(row.value)}</td>
-                      </tr>
-                    ))}
+                    {productsAll.map((row, i) => {
+                      const ratePct = productRateMap.get(row.name);
+                      return (
+                        <tr
+                          key={row.name}
+                          onClick={() => setProductModalName(row.name)}
+                          className="border-b border-white/5 last:border-0 cursor-pointer hover:bg-white/5"
+                        >
+                          <td className="py-2 pr-3 text-white/35">{i + 1}</td>
+                          <td className="py-2 pr-3">{row.name}</td>
+                          <td className="py-2 pr-3 text-right">{formatNumber(row.count)}</td>
+                          <td className="py-2 pr-3 text-right font-semibold" style={{ color: COLORS.orange }}>
+                            {ratePct != null ? formatPct(ratePct) : "-"}
+                          </td>
+                          <td className="py-2 pr-3 text-right">{formatBaht(row.value)}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
