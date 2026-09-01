@@ -75,6 +75,25 @@ export interface MonthlyRateRow {
   returnRatePct: number;
 }
 
+// % ตีกลับ per product name, for the "สินค้า" tab. order_totals.json's
+// bySku is keyed by product_code (not product_name — records.json's "n"),
+// and a few product_codes can share the same product_name label, so sum
+// orders/returned across every SKU row with that label before dividing.
+export function productReturnRates(bySku: DimBreakdownRow[]): Map<string, number> {
+  const stats = new Map<string, { orders: number; returned: number }>();
+  for (const r of bySku) {
+    const cur = stats.get(r.label) ?? { orders: 0, returned: 0 };
+    cur.orders += r.orders;
+    cur.returned += r.returned;
+    stats.set(r.label, cur);
+  }
+  const rates = new Map<string, number>();
+  for (const [label, { orders, returned }] of stats) {
+    rates.set(label, orders ? (returned / orders) * 100 : 0);
+  }
+  return rates;
+}
+
 export function monthlyRateTrend(byMonth: DimBreakdownRow[]): MonthlyRateRow[] {
   return [...byMonth]
     .sort((a, b) => a.key.localeCompare(b.key))
@@ -215,12 +234,17 @@ export function countBy(records: RawRecord[], keyFn: (r: RawRecord) => string): 
   return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
 }
 
-export function monthlyTrend(records: RawRecord[]): { month: string; label: string; count: number }[] {
-  const counts = new Map<string, number>();
-  for (const r of records) counts.set(r.m, (counts.get(r.m) ?? 0) + 1);
-  return Array.from(counts.entries())
+export function monthlyTrend(records: RawRecord[]): { month: string; label: string; count: number; value: number }[] {
+  const stats = new Map<string, { count: number; value: number }>();
+  for (const r of records) {
+    const cur = stats.get(r.m) ?? { count: 0, value: 0 };
+    cur.count += 1;
+    cur.value += r.v ?? 0;
+    stats.set(r.m, cur);
+  }
+  return Array.from(stats.entries())
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([month, count]) => ({ month, label: MONTH_LABELS[month] ?? month, count }));
+    .map(([month, { count, value }]) => ({ month, label: MONTH_LABELS[month] ?? month, count, value }));
 }
 
 export interface MonthlySummaryRow {
