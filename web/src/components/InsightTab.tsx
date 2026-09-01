@@ -119,7 +119,7 @@ export function InsightTab({
                 <div>
                   <div className="text-[0.78rem] text-white/50 uppercase">อัตราตีกลับ</div>
                   <div className="text-[2rem] font-bold leading-tight" style={{ color: COLORS.orange }}>
-                    {(liveRateCards ? liveRateCards.returnRateUnits : d.returnRatePct).toFixed(2)}%
+                    {formatPct(liveRateCards ? liveRateCards.returnRateUnits : d.returnRatePct)}
                   </div>
                 </div>
               </div>
